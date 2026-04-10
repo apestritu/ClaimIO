@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@theme {
+  --color-oai-green: #10a37f;
+  --color-oai-green-light: #1ae0a0;
+  --color-oai-green-dark: #0d8c6d;
+  --color-oai-bg: #0d0d0d;
+  --color-oai-surface: #1a1a1a;
+  --color-oai-surface-2: #242424;
+  --color-oai-surface-3: #2f2f2f;
+  --color-oai-border: #333333;
+  --color-oai-border-light: #444444;
+  --color-oai-text: #ececec;
+  --color-oai-text-secondary: #9a9a9a;
+  --color-oai-text-muted: #666666;
+  --color-oai-red: #ef4444;
+  --color-oai-yellow: #f59e0b;
+  --color-oai-blue: #3b82f6;
+  --color-oai-purple: #8b5cf6;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  font-family: "Söhne", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, sans-serif;
+  background-color: var(--color-oai-bg);
+  color: var(--color-oai-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-oai-border);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-oai-border-light);
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px 2px rgba(16, 163, 127, 0.3); }
+  50% { box-shadow: 0 0 20px 6px rgba(16, 163, 127, 0.5); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(16, 163, 127, 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s ease-in-out infinite;
+}
+
+@keyframes fade-in-up {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out forwards;
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% { opacity: 0.3; }
+  30% { opacity: 1; }
+}
+
+.typing-dot:nth-child(1) { animation: typing-dot 1.4s infinite 0s; }
+.typing-dot:nth-child(2) { animation: typing-dot 1.4s infinite 0.2s; }
+.typing-dot:nth-child(3) { animation: typing-dot 1.4s infinite 0.4s; }

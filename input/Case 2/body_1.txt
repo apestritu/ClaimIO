@@ -1,0 +1,26 @@
+Dear [NAME_1],
+
+We are sorry to hear you were unable to take your planned trip and we hope you are feeling better.
+
+
+We are pleased to inform you that our review of your claim has been completed. Payment in the amount of $3,868.50, has been requested under your Trip Cancellation policy benefit. Please allow 10-15 business days for the processing and mailing of your payment. The address on file is as follows:
+
+
+
+                [LOCATION_ADDRESS_STREET_1], North Las Vegas, NV [LOCATION_ZIP_1]
+
+
+
+It has been a pleasure assisting you with your claim. If you have any additional questions or concerns, please do not hesitate to contact us at [PHONE_NUMBER_1].
+
+
+
+Sincerely,
+
+[NAME_GIVEN_1]
+Zurich Travel Assist
+[ORGANIZATION_1]
+E : [EMAIL_ADDRESS_1]<[EMAIL_ADDRESS_2]>
+[LOCATION_ADDRESS_STREET_2]
+Schaumburg, IL [LOCATION_ZIP_2]
+
