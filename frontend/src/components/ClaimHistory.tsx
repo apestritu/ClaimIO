@@ -145,11 +145,19 @@ export default function ClaimHistory({ refreshTrigger }: ClaimHistoryProps) {
 
               return (
                 <div key={run.id} className="group">
-                  <button
+                  <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() =>
                       setExpandedId(expanded ? null : run.id)
                     }
-                    className="w-full px-5 py-3.5 flex items-center gap-3 text-left hover:bg-oai-surface-2 transition-colors"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setExpandedId(expanded ? null : run.id);
+                      }
+                    }}
+                    className="w-full px-5 py-3.5 flex items-center gap-3 text-left hover:bg-oai-surface-2 transition-colors cursor-pointer"
                   >
                     {statusIcon(run.status)}
                     <div className="flex-1 min-w-0">
@@ -199,7 +207,7 @@ export default function ClaimHistory({ refreshTrigger }: ClaimHistoryProps) {
                         <ChevronDown className="w-4 h-4 text-oai-text-muted" />
                       )}
                     </div>
-                  </button>
+                  </div>
 
                   {expanded && summary && (
                     <div className="px-5 pb-4 pt-1 space-y-3">
