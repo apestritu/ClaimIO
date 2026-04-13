@@ -1,166 +1,251 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import Header from "@/components/Header";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Zap, RotateCcw } from "lucide-react";
+import { LandingPage } from "@/components/landing/LandingPage";
+import { DemoMode } from "@/components/DemoMode";
+import { PipelineBar } from "@/components/PipelineBar";
+import { AgentAvatar } from "@/components/AgentAvatar";
+import { LiveLogPanel } from "@/components/LiveLogPanel";
+import { AgentPhaseAnimation } from "@/components/AgentPhaseAnimation";
 import CaseSelector from "@/components/CaseSelector";
-import Pipeline from "@/components/Pipeline";
-import AgentCard from "@/components/AgentCard";
-import EventFeed from "@/components/EventFeed";
 import ResultPanel from "@/components/ResultPanel";
-import ClaimHistory from "@/components/ClaimHistory";
 import { useEventStream } from "@/lib/useEventStream";
+import {
+  PIPELINE_STEPS,
+  AGENT_MESSAGES,
+  AGENT_COLORS,
+  type LogEntry,
+  type PhaseId,
+} from "@/lib/claim-data";
+
+type AppView = "landing" | "demo" | "live";
 
 export default function Home() {
-  const { state, startPipeline, reset } = useEventStream();
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [view, setView] = useState<AppView>("landing");
 
-  const [historyRefresh, setHistoryRefresh] = useState(0);
-  const prevRunning = useRef(state.isRunning);
+  if (view === "landing") {
+    return <LandingPage onEnter={() => setView("demo")} />;
+  }
 
-  useEffect(() => {
-    if (prevRunning.current && !state.isRunning) {
-      setHistoryRefresh((n) => n + 1);
-    }
-    prevRunning.current = state.isRunning;
-  }, [state.isRunning]);
-
-  const hasStarted = state.events.length > 0;
-  const hasResults = state.finalSummary !== null;
+  if (view === "demo") {
+    return (
+      <DemoMode
+        onSwitchToLive={() => setView("live")}
+        onSwitchToLanding={() => setView("landing")}
+      />
+    );
+  }
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Header />
+    <LiveMode
+      onSwitchToDemo={() => setView("demo")}
+      onSwitchToLanding={() => setView("landing")}
+    />
+  );
+}
 
-      <main className="flex-1 max-w-[1600px] mx-auto w-full px-6 py-6 space-y-6">
-        {/* Pipeline Visualization */}
-        {hasStarted && (
-          <Pipeline
-            currentAgent={state.currentAgent}
-            completedAgents={state.completedAgents}
-            onSelectAgent={setSelectedAgent}
-            selectedAgent={selectedAgent}
-          />
-        )}
+function LiveMode({ onSwitchToDemo, onSwitchToLanding }: { onSwitchToDemo: () => void; onSwitchToLanding: () => void }) {
+  const { state, startPipeline, reset } = useEventStream();
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const prevEventsLen = useRef(0);
 
-        <div className="grid grid-cols-12 gap-6">
-          {/* Left Column — Controls & Results */}
-          <div className="col-span-12 lg:col-span-3 space-y-6">
-            <CaseSelector
-              onStart={startPipeline}
-              onReset={reset}
-              isRunning={state.isRunning}
-              hasResults={hasResults}
-            />
+  const phase: PhaseId = state.finalSummary
+    ? "done"
+    : (state.currentAgent as PhaseId) || "select";
 
-            {hasResults && state.finalSummary && (
-              <ResultPanel summary={state.finalSummary} />
-            )}
+  const activeStep = PIPELINE_STEPS.findIndex((s) => s.id === state.currentAgent);
+  const completedSteps = PIPELINE_STEPS
+    .map((s, i) => (state.completedAgents.includes(s.id) ? i : -1))
+    .filter((i) => i >= 0);
 
-            <ClaimHistory refreshTrigger={historyRefresh} />
-          </div>
+  const addLog = useCallback((log: Omit<LogEntry, "id" | "timestamp">) => {
+    const now = new Date();
+    const timestamp = `${now.getHours().toString().padStart(2, "0")}:${now
+      .getMinutes()
+      .toString()
+      .padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}`;
+    setLogs((prev) => [...prev, { ...log, id: crypto.randomUUID(), timestamp }]);
+  }, []);
 
-          {/* Center Column — Agent Detail */}
-          <div className="col-span-12 lg:col-span-5 space-y-4">
-            {!hasStarted && (
-              <div className="bg-oai-surface rounded-2xl border border-oai-border p-12 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-oai-green/10 flex items-center justify-center mx-auto mb-4">
-                  <svg
-                    className="w-8 h-8 text-oai-green"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-lg font-semibold text-oai-text mb-2">
-                  Ready to Process
-                </h2>
-                <p className="text-sm text-oai-text-secondary max-w-md mx-auto">
-                  Select a claim case and click{" "}
-                  <span className="text-oai-green font-medium">
-                    Process Claim
-                  </span>{" "}
-                  to watch 9 AI agents analyze documents, extract facts, evaluate
-                  coverage, and make a decision in real-time.
-                </p>
-                <div className="mt-6 flex items-center justify-center gap-6 text-[10px] text-oai-text-muted">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-oai-green" />
-                    OpenAI Agents SDK
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-oai-blue" />
-                    A2A Protocol
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-oai-purple" />
-                    MCP Integration
-                  </span>
-                </div>
-              </div>
-            )}
+  useEffect(() => {
+    const newEvents = state.events.slice(prevEventsLen.current);
+    prevEventsLen.current = state.events.length;
 
-            {hasStarted && (
+    for (const evt of newEvents) {
+      const icon =
+        evt.status === "completed"
+          ? "✅"
+          : evt.status === "failed"
+          ? "❌"
+          : evt.status === "working"
+          ? "⚙️"
+          : "📨";
+      addLog({ icon, text: evt.message, agent: evt.agent });
+    }
+  }, [state.events, addLog]);
+
+
+  const handleStart = useCallback(
+    (caseId: string) => {
+      setLogs([]);
+      prevEventsLen.current = 0;
+      addLog({ icon: "🚀", text: `Starting pipeline for ${caseId}...` });
+      startPipeline(caseId);
+    },
+    [startPipeline, addLog]
+  );
+
+  const handleReset = useCallback(() => {
+    reset();
+    setLogs([]);
+    prevEventsLen.current = 0;
+  }, [reset]);
+
+  const hasStarted = state.events.length > 0 || state.isRunning;
+  const isDone = !!state.finalSummary;
+
+  return (
+    <div className="flex flex-col h-screen overflow-hidden">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-6 py-3 glass-panel border-b border-glass-border">
+        <div className="flex items-center gap-2">
+          <Zap size={20} className="text-primary" />
+          <span className="text-lg font-bold text-gradient-primary">ClaimIO</span>
+        </div>
+        <div className="flex items-center gap-4">
+          {/* Back to landing */}
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium glass-panel hover:bg-glass-border transition-colors text-muted-foreground"
+            onClick={() => {
+              if (hasStarted) handleReset();
+              onSwitchToLanding();
+            }}
+          >
+            ← Home
+          </button>
+          {/* Switch to demo */}
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium glass-panel hover:bg-glass-border transition-colors text-emerald"
+            onClick={() => {
+              if (hasStarted) handleReset();
+              onSwitchToDemo();
+            }}
+          >
+            🧪 Switch to Demo
+          </button>
+          {hasStarted && (
+            <button
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-medium glass-panel hover:bg-glass-border transition-colors"
+              onClick={handleReset}
+            >
+              <RotateCcw size={10} />
+              Reset
+            </button>
+          )}
+          <div className="text-xs font-mono text-muted-foreground">
+            {state.isRunning && state.currentAgent && (
               <>
-                {selectedAgent ? (
-                  <AgentCard
-                    agentId={selectedAgent}
-                    events={state.events}
-                    isActive={state.currentAgent === selectedAgent}
-                    isCompleted={state.completedAgents.includes(selectedAgent)}
-                  />
-                ) : (
-                  <div className="space-y-4">
-                    {state.completedAgents
-                      .concat(state.currentAgent ? [state.currentAgent] : [])
-                      .filter((v, i, a) => a.indexOf(v) === i)
-                      .filter((id) => id !== "Orchestrator")
-                      .map((agentId) => (
-                        <AgentCard
-                          key={agentId}
-                          agentId={agentId}
-                          events={state.events}
-                          isActive={state.currentAgent === agentId}
-                          isCompleted={state.completedAgents.includes(agentId)}
-                        />
-                      ))}
-                  </div>
-                )}
+                Active: <span className="text-foreground">{state.currentAgent}</span>
               </>
             )}
-          </div>
-
-          {/* Right Column — Event Feed */}
-          <div className="col-span-12 lg:col-span-4">
-            <EventFeed events={state.events} />
+            {isDone && (
+              <span className="text-emerald font-semibold">Pipeline Complete</span>
+            )}
+            {!hasStarted && (
+              <span className="text-muted-foreground">🔴 Live — Ready</span>
+            )}
           </div>
         </div>
+      </div>
 
-        {/* Error Display */}
-        {state.error && (
-          <div className="bg-oai-red/10 border border-oai-red/30 rounded-xl p-4">
-            <p className="text-sm text-oai-red">{state.error}</p>
-          </div>
-        )}
-      </main>
+      {/* Pipeline */}
+      {hasStarted && (
+        <PipelineBar activeStep={activeStep} completedSteps={completedSteps} />
+      )}
 
-      {/* Footer */}
-      <footer className="border-t border-oai-border py-4 px-6">
-        <div className="max-w-[1600px] mx-auto flex items-center justify-between">
-          <p className="text-[10px] text-oai-text-muted">
-            Built with OpenAI Codex • Agents SDK • A2A • MCP
-          </p>
-          <p className="text-[10px] text-oai-text-muted">
-            ClaimIO © 2026
-          </p>
+      {/* Main content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Main animation area */}
+        <div className="flex-1 relative overflow-hidden" style={{ flexBasis: "70%" }}>
+          {hasStarted && phase !== "select" && phase !== "done" && (
+            <AgentAvatar
+              phase={phase}
+              message={AGENT_MESSAGES[phase] || "Processing..."}
+              glowColor={AGENT_COLORS[phase] || "oklch(0.62 0.19 250)"}
+            />
+          )}
+
+          <AnimatePresence mode="wait">
+            {!hasStarted && (
+              <motion.div
+                key="select"
+                className="absolute inset-0"
+                initial={{ opacity: 0, scale: 1.05, filter: "blur(8px)" }}
+                animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, scale: 0.95, filter: "blur(8px)" }}
+                transition={{ duration: 0.5 }}
+              >
+                <CaseSelector
+                  onStart={handleStart}
+                  addLog={addLog}
+                  isRunning={state.isRunning}
+                />
+              </motion.div>
+            )}
+
+            {hasStarted && !isDone && state.currentAgent && (
+              <motion.div
+                key={state.currentAgent}
+                className="absolute inset-0"
+                initial={{ opacity: 0, scale: 1.05, filter: "blur(8px)" }}
+                animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, scale: 0.95, filter: "blur(8px)" }}
+                transition={{ duration: 0.5 }}
+              >
+                <AgentPhaseAnimation
+                  agentId={state.currentAgent}
+                  events={state.events}
+                  isCompleted={state.completedAgents.includes(state.currentAgent)}
+                />
+              </motion.div>
+            )}
+
+            {isDone && (
+              <motion.div
+                key="done"
+                className="absolute inset-0 flex items-center justify-center"
+                initial={{ opacity: 0, scale: 1.05, filter: "blur(8px)" }}
+                animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, scale: 0.95, filter: "blur(8px)" }}
+                transition={{ duration: 0.5 }}
+              >
+                <div className="max-w-lg w-full">
+                  {state.finalSummary && <ResultPanel summary={state.finalSummary} />}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      </footer>
+
+        {/* Right panel */}
+        <div
+          className="shrink-0 overflow-hidden"
+          style={{ flexBasis: "30%", maxWidth: "380px" }}
+        >
+          <LiveLogPanel logs={logs} />
+        </div>
+      </div>
+
+      {/* Error Display */}
+      {state.error && (
+        <div className="px-6 py-3">
+          <div className="rounded-xl px-4 py-3 glass-panel" style={{ borderColor: "oklch(0.65 0.2 15 / 30%)" }}>
+            <p className="text-sm" style={{ color: "oklch(0.65 0.2 15)" }}>{state.error}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -47,11 +47,9 @@ export function useEventStream() {
     });
 
     try {
-      const apiBase =
-        process.env.NEXT_PUBLIC_API_URL || "";
-      const response = await fetch(`${apiBase}/api/claims/${caseId}/process`, {
-        signal: abort.signal,
-      });
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
+      const url = `${apiBase}/api/claims/${encodeURIComponent(caseId)}/process`;
+      const response = await fetch(url, { signal: abort.signal });
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
