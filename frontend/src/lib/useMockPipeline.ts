@@ -7,6 +7,7 @@ import { PIPELINE_STEPS } from "./claim-data";
 const INITIAL_STATE: PipelineState = {
   isRunning: false,
   events: [],
+  agentEvents: {},
   currentAgent: null,
   completedAgents: [],
   error: null,

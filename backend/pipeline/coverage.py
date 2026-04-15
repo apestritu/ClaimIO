@@ -171,6 +171,10 @@ async def run_coverage(ctx: dict, bus: EventBus) -> dict:
         }
 
     valid, rule_issues = _rule_check(facts)
+    guardrail_results = [
+        {"rule": "Bag delay ≥ 24h", "passed": "Bag delay < 24h" not in rule_issues},
+        {"rule": "Receipts ≤ policy limits", "passed": "Claim exceeds policy limits" not in rule_issues},
+    ]
     if not valid:
         gpt_result.setdefault("issues", []).extend(rule_issues)
         gpt_result["coverage_confidence"] = min(
@@ -189,6 +193,26 @@ async def run_coverage(ctx: dict, bus: EventBus) -> dict:
         "mean_extract_conf": ctx.get("mean_extract_conf", 0.0),
     }
 
+    merged_facts_list = []
+    label_map = {
+        "policy_effective": ("Policy Start", "📋"),
+        "policy_expires": ("Policy End", "📋"),
+        "incident_date": ("Incident", "📅"),
+        "bag_delay_start": ("Bag Delay Start", "🧳"),
+        "bag_delivered": ("Bag Delivered", "🧳"),
+        "total_receipts": ("Total Receipts", "💰"),
+        "total_refunds": ("Total Refunds", "💰"),
+    }
+    for key, val in facts.items():
+        if key in ("coverage_limits",):
+            continue
+        label, icon = label_map.get(key, (key.replace("_", " ").title(), "📋"))
+        merged_facts_list.append({"label": label, "value": str(val), "icon": icon})
+    limits = facts.get("coverage_limits", {})
+    if limits:
+        parts = [f"${v}/{k}" for k, v in limits.items() if v]
+        merged_facts_list.append({"label": "Limits", "value": ", ".join(parts), "icon": "🛡️"})
+
     await bus.publish(TaskEvent(
         agent="CoverageReasoningAgent",
         status=TaskStatus.COMPLETED,
@@ -200,6 +224,8 @@ async def run_coverage(ctx: dict, bus: EventBus) -> dict:
             "coverage_confidence": gpt_result.get("coverage_confidence", 0.5),
             "issues": gpt_result.get("issues", []),
             "reasoning": gpt_result.get("reasoning", ""),
+            "guardrail_results": guardrail_results,
+            "merged_facts_list": merged_facts_list,
         },
     ))
 

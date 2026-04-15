@@ -12,6 +12,7 @@ import {
   FileText,
   ChevronDown,
   ChevronUp,
+  Play,
 } from "lucide-react";
 import clsx from "clsx";
 
@@ -27,7 +28,8 @@ interface HistoryRun {
 }
 
 interface ClaimHistoryProps {
-  refreshTrigger: number;
+  refreshTrigger?: number;
+  onReplay?: (runId: string) => void;
 }
 
 function formatTime(ts: number): string {
@@ -48,7 +50,7 @@ function formatDuration(start: number, end: number): string {
   return `${mins}m ${rem}s`;
 }
 
-export default function ClaimHistory({ refreshTrigger }: ClaimHistoryProps) {
+export default function ClaimHistory({ refreshTrigger, onReplay }: ClaimHistoryProps) {
   const [runs, setRuns] = useState<HistoryRun[]>([]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -127,7 +129,7 @@ export default function ClaimHistory({ refreshTrigger }: ClaimHistoryProps) {
         </div>
       </div>
 
-      <div className="max-h-[400px] overflow-y-auto">
+      <div className="max-h-[600px] overflow-y-auto">
         {runs.length === 0 ? (
           <div className="p-8 text-center">
             <Clock className="w-8 h-8 text-oai-text-muted mx-auto mb-2 opacity-40" />
@@ -191,6 +193,18 @@ export default function ClaimHistory({ refreshTrigger }: ClaimHistoryProps) {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
+                      {onReplay && run.status === 'completed' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onReplay(run.id);
+                          }}
+                          className="p-1 rounded opacity-0 group-hover:opacity-100 text-oai-text-muted hover:text-oai-purple hover:bg-oai-purple/10 transition-all"
+                          title="Replay"
+                        >
+                          <Play className="w-3 h-3" />
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();

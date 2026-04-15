@@ -9,8 +9,11 @@ import { PipelineBar } from "@/components/PipelineBar";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { LiveLogPanel } from "@/components/LiveLogPanel";
 import { AgentPhaseAnimation } from "@/components/AgentPhaseAnimation";
+import { LiveAgentAnimation } from "@/components/LiveAgentAnimation";
 import CaseSelector from "@/components/CaseSelector";
 import ResultPanel from "@/components/ResultPanel";
+import { ReplayMode } from "@/components/ReplayMode";
+import ClaimHistory from "@/components/ClaimHistory";
 import { useEventStream } from "@/lib/useEventStream";
 import {
   PIPELINE_STEPS,
@@ -20,10 +23,16 @@ import {
   type PhaseId,
 } from "@/lib/claim-data";
 
-type AppView = "landing" | "demo" | "live";
+type AppView = "landing" | "demo" | "live" | "replay";
 
 export default function Home() {
   const [view, setView] = useState<AppView>("landing");
+  const [replayRunId, setReplayRunId] = useState<string | null>(null);
+
+  const handleReplay = useCallback((runId: string) => {
+    setReplayRunId(runId);
+    setView("replay");
+  }, []);
 
   if (view === "landing") {
     return <LandingPage onEnter={() => setView("demo")} />;
@@ -38,15 +47,29 @@ export default function Home() {
     );
   }
 
+  if (view === "replay" && replayRunId) {
+    return (
+      <ReplayMode
+        runId={replayRunId}
+        onExit={() => {
+          setReplayRunId(null);
+          setView("live");
+        }}
+      />
+    );
+  }
+
   return (
     <LiveMode
       onSwitchToDemo={() => setView("demo")}
       onSwitchToLanding={() => setView("landing")}
+      onReplay={handleReplay}
     />
   );
 }
 
-function LiveMode({ onSwitchToDemo, onSwitchToLanding }: { onSwitchToDemo: () => void; onSwitchToLanding: () => void }) {
+function LiveMode({ onSwitchToDemo, onSwitchToLanding, onReplay }: { onSwitchToDemo: () => void; onSwitchToLanding: () => void; onReplay: (runId: string) => void }) {
+  const [rightTab, setRightTab] = useState<'logs' | 'history'>('logs');
   const { state, startPipeline, reset } = useEventStream();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const prevEventsLen = useRef(0);
@@ -204,10 +227,14 @@ function LiveMode({ onSwitchToDemo, onSwitchToLanding }: { onSwitchToDemo: () =>
                 exit={{ opacity: 0, scale: 0.95, filter: "blur(8px)" }}
                 transition={{ duration: 0.5 }}
               >
-                <AgentPhaseAnimation
+                <LiveAgentAnimation
                   agentId={state.currentAgent}
-                  events={state.events}
+                  agentEvents={state.agentEvents}
+                  allEvents={state.events}
                   isCompleted={state.completedAgents.includes(state.currentAgent)}
+                  addLog={addLog}
+                  onComplete={() => {}}
+                  onRestart={handleReset}
                 />
               </motion.div>
             )}
@@ -231,10 +258,37 @@ function LiveMode({ onSwitchToDemo, onSwitchToLanding }: { onSwitchToDemo: () =>
 
         {/* Right panel */}
         <div
-          className="shrink-0 overflow-hidden"
+          className="shrink-0 overflow-hidden flex flex-col"
           style={{ flexBasis: "30%", maxWidth: "380px" }}
         >
-          <LiveLogPanel logs={logs} />
+          {/* Tab switcher */}
+          <div className="flex border-b border-glass-border">
+            <button
+              onClick={() => setRightTab('logs')}
+              className={`flex-1 py-2 text-[10px] font-bold transition-colors ${
+                rightTab === 'logs' ? 'text-foreground border-b-2' : 'text-muted-foreground'
+              }`}
+              style={rightTab === 'logs' ? { borderBottomColor: 'oklch(0.62 0.19 250)' } : {}}
+            >
+              📋 Live Logs
+            </button>
+            <button
+              onClick={() => setRightTab('history')}
+              className={`flex-1 py-2 text-[10px] font-bold transition-colors ${
+                rightTab === 'history' ? 'text-foreground border-b-2' : 'text-muted-foreground'
+              }`}
+              style={rightTab === 'history' ? { borderBottomColor: 'oklch(0.62 0.19 250)' } : {}}
+            >
+              📚 History
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden">
+            {rightTab === 'logs' ? (
+              <LiveLogPanel logs={logs} />
+            ) : (
+              <ClaimHistory onReplay={onReplay} />
+            )}
+          </div>
         </div>
       </div>
 

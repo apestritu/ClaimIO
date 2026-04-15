@@ -3,10 +3,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { LogEntry } from '@/lib/claim-data';
+import type { EvaluateAgentData } from '@/lib/agent-data-mapper';
 
 interface EvaluateAnimationProps {
   addLog: (log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   onComplete: () => void;
+  agentData?: EvaluateAgentData;
 }
 
 interface EvalRow {
@@ -31,7 +33,10 @@ const EVAL_ROWS: EvalRow[] = [
 const MEAN_CONFIDENCE = 0.89;
 const TOTAL_AMOUNT = '$487.30';
 
-export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps) {
+export function EvaluateAnimation({ addLog, onComplete, agentData }: EvaluateAnimationProps) {
+  const evalRows = agentData?.rows ?? EVAL_ROWS;
+  const meanConfidence = agentData?.meanConfidence ?? MEAN_CONFIDENCE;
+  const totalAmount = agentData?.totalAmount || TOTAL_AMOUNT;
   const [activePanels, setActivePanels] = useState<number[]>([]);
   const [factsVisible, setFactsVisible] = useState<number[]>([]);
   const [summaryVisible, setSummaryVisible] = useState<number[]>([]);
@@ -50,8 +55,8 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
 
     const timers: ReturnType<typeof setTimeout>[] = [];
 
-    EVAL_ROWS.forEach((row, i) => {
-      const start = 400 + i * 2000;
+    evalRows.forEach((row, i) => {
+      const start = 150 + i * 650;
 
       // CRT flicker on
       timers.push(setTimeout(() => {
@@ -60,43 +65,43 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
       }, start));
 
       // Stream facts
-      timers.push(setTimeout(() => setFactsVisible(prev => [...prev, i]), start + 400));
+      timers.push(setTimeout(() => setFactsVisible(prev => [...prev, i]), start + 130));
 
       // AI summary
       timers.push(setTimeout(() => {
         setSummaryVisible(prev => [...prev, i]);
         addLog({ icon: '→', text: `${row.doc}: "${row.impact}" (conf: ${row.conf.toFixed(2)})` });
-      }, start + 800));
+      }, start + 260));
 
       // Impact bar fill
-      timers.push(setTimeout(() => setImpactFill(prev => [...prev, i]), start + 1100));
+      timers.push(setTimeout(() => setImpactFill(prev => [...prev, i]), start + 370));
 
       // Confidence dial
-      timers.push(setTimeout(() => setConfFill(prev => [...prev, i]), start + 1400));
+      timers.push(setTimeout(() => setConfFill(prev => [...prev, i]), start + 470));
     });
 
-    const totalTime = 400 + EVAL_ROWS.length * 2000 + 400;
+    const totalTime = 150 + evalRows.length * 650 + 150;
 
     timers.push(setTimeout(() => {
       setShowTotal(true);
-      addLog({ icon: '💰', text: `TOTAL: ${TOTAL_AMOUNT}` });
+      if (totalAmount) addLog({ icon: '💰', text: `TOTAL: ${totalAmount}` });
     }, totalTime));
 
     timers.push(setTimeout(() => {
-      addLog({ icon: '📊', text: `Mean extraction confidence: ${MEAN_CONFIDENCE}` });
-    }, totalTime + 600));
+      addLog({ icon: '📊', text: `Mean extraction confidence: ${meanConfidence}` });
+    }, totalTime + 200));
 
     timers.push(setTimeout(() => {
       setShowPrint(true);
-      addLog({ icon: '�️', text: 'Printing Evidence Evaluation...' });
-    }, totalTime + 1200));
+      addLog({ icon: '🖨️', text: 'Printing Evidence Evaluation...' });
+    }, totalTime + 400));
 
     timers.push(setTimeout(() => {
       setShowPdf(true);
       addLog({ icon: '✅', text: 'Evidence Evaluation complete' });
-    }, totalTime + 2000));
+    }, totalTime + 650));
 
-    timers.push(setTimeout(() => onComplete(), totalTime + 3200));
+    timers.push(setTimeout(() => onComplete(), totalTime + 1000));
 
     return () => timers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,7 +134,7 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
             <div className="w-2 h-2 rounded-full" style={{ background: 'oklch(0.8 0.16 80)' }} />
             <div className="w-2 h-2 rounded-full" style={{ background: 'oklch(0.7 0.17 160)' }} />
           </div>
-          <span className="text-[11px] font-mono text-muted-foreground tracking-wider">EVIDENCE ANALYSIS LAB</span>
+          <span className="text-[13px] font-mono text-muted-foreground tracking-wider">EVIDENCE ANALYSIS LAB</span>
           <div className="flex-1" />
           <motion.div
             className="w-2 h-2 rounded-full"
@@ -137,12 +142,12 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ duration: 1.5, repeat: Infinity }}
           />
-          <span className="text-[10px] font-mono text-muted-foreground">LIVE</span>
+          <span className="text-[12px] font-mono text-muted-foreground">LIVE</span>
         </div>
 
         {/* Panels grid */}
         <div className="p-3 grid grid-cols-5 gap-2">
-          {EVAL_ROWS.map((row, i) => {
+          {evalRows.map((row, i) => {
             const isActive = activePanels.includes(i);
             return (
               <motion.div
@@ -174,10 +179,10 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
                       <div className="p-2 h-full flex flex-col">
                         {/* Panel header */}
                         <div className="flex items-center gap-1 mb-2">
-                          <span className="text-sm">{row.icon}</span>
+                          <span className="text-base">{row.icon}</span>
                           <div className="min-w-0">
-                            <div className="text-[10px] font-bold text-foreground truncate">{row.doc}</div>
-                            <div className="text-[8px] font-mono text-muted-foreground">{row.type}</div>
+                            <div className="text-[12px] font-bold text-foreground truncate">{row.doc}</div>
+                            <div className="text-[10px] font-mono text-muted-foreground">{row.type}</div>
                           </div>
                         </div>
 
@@ -198,7 +203,7 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
                                   transition={{ delay: fi * 0.12 }}
                                 >
                                   <div className="w-1 h-1 rounded-full shrink-0" style={{ background: 'oklch(0.7 0.15 195)' }} />
-                                  <span className="text-[8px] font-mono text-cyan truncate">{fact}</span>
+                                  <span className="text-[10px] font-mono text-cyan truncate">{fact}</span>
                                 </motion.div>
                               ))}
                             </motion.div>
@@ -209,7 +214,7 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
                         <AnimatePresence>
                           {summaryVisible.includes(i) && (
                             <motion.p
-                              className="text-[9px] italic text-muted-foreground mb-2 leading-relaxed"
+                              className="text-[11px] italic text-muted-foreground mb-2 leading-relaxed"
                               initial={{ opacity: 0 }}
                               animate={{ opacity: 1 }}
                               transition={{ duration: 0.5 }}
@@ -222,7 +227,7 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
                         <div className="mt-auto space-y-2">
                           {/* Impact meter */}
                           <div>
-                            <div className="text-[7px] font-mono text-muted-foreground uppercase tracking-wider mb-0.5">Impact</div>
+                            <div className="text-[9px] font-mono text-muted-foreground uppercase tracking-wider mb-0.5">Impact</div>
                             <div className="h-2 rounded-full overflow-hidden" style={{ background: 'oklch(0.2 0.02 256)' }}>
                               <motion.div
                                 className="h-full rounded-full"
@@ -234,7 +239,7 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
                             </div>
                             {impactFill.includes(i) && (
                               <motion.div
-                                className="text-[8px] font-bold mt-0.5 truncate"
+                                className="text-[10px] font-bold mt-0.5 truncate"
                                 style={{ color: row.impactColor }}
                                 initial={{ opacity: 0 }}
                                 animate={{ opacity: 1 }}
@@ -277,11 +282,11 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
                                   animate={{ opacity: 1 }}
                                   transition={{ delay: 0.5 }}
                                 >
-                                  <span className="text-[9px] font-bold text-foreground">{row.conf.toFixed(2)}</span>
+                                  <span className="text-[11px] font-bold text-foreground">{row.conf.toFixed(2)}</span>
                                 </motion.div>
                               )}
                             </div>
-                            <span className="text-[7px] font-mono text-muted-foreground uppercase">Conf</span>
+                            <span className="text-[9px] font-mono text-muted-foreground uppercase">Conf</span>
                           </div>
                         </div>
                       </div>
@@ -292,7 +297,7 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
                 {/* Inactive screen */}
                 {!isActive && (
                   <div className="flex items-center justify-center h-full">
-                    <div className="text-[10px] font-mono text-muted-foreground/30">STANDBY</div>
+                    <div className="text-[12px] font-mono text-muted-foreground/30">STANDBY</div>
                   </div>
                 )}
               </motion.div>
@@ -312,17 +317,17 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
             >
-              <span className="text-xs font-bold text-foreground">TOTAL</span>
-              <span className="text-sm font-mono font-bold" style={{ color: 'oklch(0.7 0.17 160)' }}>{TOTAL_AMOUNT}</span>
+              <span className="text-sm font-bold text-foreground">TOTAL</span>
+              <span className="text-base font-mono font-bold" style={{ color: 'oklch(0.7 0.17 160)' }}>{totalAmount}</span>
               <div
-                className="px-2 py-0.5 rounded-full text-[10px] font-bold"
+                className="px-2 py-0.5 rounded-full text-[12px] font-bold"
                 style={{
                   background: 'oklch(0.55 0.2 270 / 15%)',
                   color: 'oklch(0.7 0.2 270)',
                   border: '1px solid oklch(0.55 0.2 270 / 30%)',
                 }}
               >
-                📊 Mean: {MEAN_CONFIDENCE}
+                📊 Mean: {meanConfidence.toFixed ? meanConfidence.toFixed(2) : meanConfidence}
               </div>
             </motion.div>
           )}
@@ -337,7 +342,7 @@ export function EvaluateAnimation({ addLog, onComplete }: EvaluateAnimationProps
               animate={{ opacity: 1 }}
             >
               <motion.div
-                className="px-4 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1.5"
+                className="px-4 py-1.5 rounded-lg text-[13px] font-bold flex items-center gap-1.5"
                 style={{
                   background: 'oklch(0.55 0.2 270)',
                   color: 'white',

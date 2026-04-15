@@ -3,10 +3,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { LogEntry } from '@/lib/claim-data';
+import type { CoverageAgentData } from '@/lib/agent-data-mapper';
 
 interface CoverageAnimationProps {
   addLog: (log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   onComplete: () => void;
+  agentData?: CoverageAgentData;
 }
 
 interface ReasoningQuestion {
@@ -33,7 +35,11 @@ const QUESTIONS: ReasoningQuestion[] = [
 
 type Stage = 'merge' | 'reasoning' | 'guardrails' | 'result';
 
-export function CoverageAnimation({ addLog, onComplete }: CoverageAnimationProps) {
+export function CoverageAnimation({ addLog, onComplete, agentData }: CoverageAnimationProps) {
+  const mergedFacts = agentData?.mergedFacts ?? MERGED_FACTS;
+  const questions = agentData?.questions ?? QUESTIONS;
+  const covConfidence = agentData?.coverageConfidence ?? 0.82;
+  const approvedAmt = agentData ? `$${agentData.approvedAmount.toFixed(2)}` : '$487.30';
   const [stage, setStage] = useState<Stage>('merge');
   const [mergedVisible, setMergedVisible] = useState(0);
   const [showMergedCard, setShowMergedCard] = useState(false);
@@ -48,33 +54,33 @@ export function CoverageAnimation({ addLog, onComplete }: CoverageAnimationProps
     if (startedRef.current) return;
     startedRef.current = true;
 
-    addLog({ icon: '🔀', text: `Merging facts from ${MERGED_FACTS.length} sources...` });
+    addLog({ icon: '🔀', text: `Merging facts from ${mergedFacts.length} sources...` });
 
     // Part A — Fact Merge (3s)
     const mergeTimers: ReturnType<typeof setTimeout>[] = [];
-    MERGED_FACTS.forEach((fact, i) => {
+    mergedFacts.forEach((fact, i) => {
       mergeTimers.push(setTimeout(() => {
         setMergedVisible(i + 1);
         if (i < 3) addLog({ icon: '📋', text: `${fact.label}: ${fact.value}` });
-      }, 500 + i * 350));
+      }, 250 + i * 180));
     });
 
     const t1 = setTimeout(() => {
       setShowMergedCard(true);
-    }, 500 + MERGED_FACTS.length * 350 + 300);
+    }, 250 + mergedFacts.length * 180 + 150);
 
     // Part B — GPT Reasoning (4s)
     const t2 = setTimeout(() => {
       setStage('reasoning');
       addLog({ icon: '🧠', text: 'GPT-4.1 coverage reasoning...' });
-    }, 3000);
+    }, 1500);
 
     const questionTimers: ReturnType<typeof setTimeout>[] = [];
-    QUESTIONS.forEach((q, i) => {
+    questions.forEach((q, i) => {
       questionTimers.push(setTimeout(() => {
         setResolvedQuestions(i + 1);
         addLog({ icon: q.result, text: q.text.replace('?', '') });
-      }, 3800 + i * 1000));
+      }, 1900 + i * 500));
     });
 
     // Part C — Guard-Rails (2s)
@@ -82,25 +88,25 @@ export function CoverageAnimation({ addLog, onComplete }: CoverageAnimationProps
       setStage('guardrails');
       setShowShield(true);
       addLog({ icon: '🛡️', text: 'Running guard-rails...' });
-    }, 3800 + QUESTIONS.length * 1000 + 500);
+    }, 1900 + questions.length * 500 + 250);
 
     const t4 = setTimeout(() => {
       setShieldPass(true);
       addLog({ icon: '✅', text: 'All rules passed' });
-    }, 3800 + QUESTIONS.length * 1000 + 2000);
+    }, 1900 + questions.length * 500 + 1000);
 
     // Part D — Result (2s)
     const t5 = setTimeout(() => {
       setStage('result');
       setShowResult(true);
-      addLog({ icon: '📊', text: 'Coverage confidence: 0.82 | Approved: $487.30' });
-    }, 3800 + QUESTIONS.length * 1000 + 3000);
+      addLog({ icon: '📊', text: `Coverage confidence: ${covConfidence.toFixed(2)} | Approved: ${approvedAmt}` });
+    }, 1900 + questions.length * 500 + 1500);
 
     const t6 = setTimeout(() => {
-      setConfidenceValue(0.82);
-    }, 3800 + QUESTIONS.length * 1000 + 3500);
+      setConfidenceValue(covConfidence);
+    }, 1900 + questions.length * 500 + 1800);
 
-    const t7 = setTimeout(onComplete, 3800 + QUESTIONS.length * 1000 + 5500);
+    const t7 = setTimeout(onComplete, 1900 + questions.length * 500 + 3000);
 
     return () => {
       mergeTimers.forEach(clearTimeout);
@@ -123,7 +129,7 @@ export function CoverageAnimation({ addLog, onComplete }: CoverageAnimationProps
           {/* Scattered bubbles → merged card */}
           {!showMergedCard ? (
             <div className="flex flex-wrap justify-center gap-2 max-w-md">
-              {MERGED_FACTS.slice(0, mergedVisible).map((fact, i) => (
+              {mergedFacts.slice(0, mergedVisible).map((fact, i) => (
                 <motion.div
                   key={fact.label}
                   className="px-2.5 py-1 rounded-full text-[9px] font-mono"
@@ -154,7 +160,7 @@ export function CoverageAnimation({ addLog, onComplete }: CoverageAnimationProps
               transition={{ type: 'spring', stiffness: 200, damping: 15 }}
             >
               <div className="text-[10px] font-bold text-amber mb-2">📋 Merged Facts</div>
-              {MERGED_FACTS.map((fact) => (
+              {mergedFacts.map((fact) => (
                 <div key={fact.label} className="flex items-center gap-2 py-0.5">
                   <span className="text-xs">{fact.icon}</span>
                   <span className="text-[8px] font-mono text-muted-foreground">{fact.label}:</span>
@@ -186,7 +192,7 @@ export function CoverageAnimation({ addLog, onComplete }: CoverageAnimationProps
             animate={{ x: 0 }}
           >
             <div className="text-[9px] font-bold text-amber mb-1.5">📋 Merged Facts</div>
-            {MERGED_FACTS.map((fact) => (
+            {mergedFacts.map((fact) => (
               <div key={fact.label} className="flex items-center gap-1.5 py-0.5">
                 <span className="text-[10px]">{fact.icon}</span>
                 <span className="text-[7px] font-mono text-muted-foreground">{fact.label}:</span>
@@ -212,8 +218,8 @@ export function CoverageAnimation({ addLog, onComplete }: CoverageAnimationProps
             </motion.div>
 
             {/* Orbiting questions */}
-            {QUESTIONS.map((q, i) => {
-              const angle = (i / QUESTIONS.length) * Math.PI * 2 - Math.PI / 2;
+            {questions.map((q, i) => {
+              const angle = (i / questions.length) * Math.PI * 2 - Math.PI / 2;
               const radius = 160;
               const x = Math.cos(angle) * radius;
               const y = Math.sin(angle) * radius;

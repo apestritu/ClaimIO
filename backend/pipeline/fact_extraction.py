@@ -72,6 +72,13 @@ async def run_fact_extraction(ctx: dict, bus: EventBus) -> dict:
             conf = float(result.get("confidence_extraction", 0.0))
             docs[fn]["extract_conf"] = conf
 
+        key_facts = []
+        if not isinstance(result, Exception):
+            facts = result.get("facts", {}) or {}
+            for k, v in facts.items():
+                if v and k not in ("raw_text",):
+                    key_facts.append(f"{k}: {v}")
+
         await bus.publish(TaskEvent(
             agent="FactExtractionAgent",
             status=TaskStatus.WORKING,
@@ -81,14 +88,24 @@ async def run_fact_extraction(ctx: dict, bus: EventBus) -> dict:
                 "doc_type": result.get("doc_type", "Unknown") if not isinstance(result, Exception) else "Error",
                 "summary": result.get("summary", "") if not isinstance(result, Exception) else str(result),
                 "confidence": docs[fn].get("extract_conf", 0.0),
+                "key_facts": key_facts[:6],
             },
         ))
+
+    fact_map_summary = {}
+    for fn, fm in fact_map.items():
+        fact_map_summary[fn] = {
+            "doc_type": fm.get("doc_type", "Unknown"),
+            "summary": fm.get("summary", ""),
+            "confidence_extraction": fm.get("confidence_extraction", 0.0),
+            "facts": {k: v for k, v in (fm.get("facts", {}) or {}).items() if k != "raw_text"},
+        }
 
     await bus.publish(TaskEvent(
         agent="FactExtractionAgent",
         status=TaskStatus.COMPLETED,
         message=f"Extracted facts from {len(fact_map)} documents",
-        data={"document_count": len(fact_map)},
+        data={"document_count": len(fact_map), "fact_map": fact_map_summary},
     ))
 
     ctx["fact_map"] = fact_map

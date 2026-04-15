@@ -3,20 +3,25 @@
 import { useEffect, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MOCK_DOCUMENTS, type LogEntry, type ClaimDocument } from '@/lib/claim-data';
+import type { IngestAgentData } from '@/lib/agent-data-mapper';
 
 interface IngestAnimationProps {
   addLog: (log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   onComplete: () => void;
+  agentData?: IngestAgentData;
 }
 
-export function IngestAnimation({ addLog, onComplete }: IngestAnimationProps) {
+export function IngestAnimation({ addLog, onComplete, agentData }: IngestAnimationProps) {
   const [scanningIndex, setScanningIndex] = useState(-1);
   const [scannedDocs, setScannedDocs] = useState<ClaimDocument[]>([]);
   const [scanPhase, setScanPhase] = useState<'scanning' | 'classified' | 'idle'>('idle');
   const [showBookshelf, setShowBookshelf] = useState(false);
   const [showConfidence, setShowConfidence] = useState(false);
   const [hoveredDoc, setHoveredDoc] = useState<string | null>(null);
-  const docs = MOCK_DOCUMENTS;
+  const docs: ClaimDocument[] = agentData
+    ? agentData.documents.map(d => ({ id: d.id, name: d.name, size: d.size, type: d.type as ClaimDocument['type'], confidence: d.confidence, icon: d.icon, color: d.color }))
+    : MOCK_DOCUMENTS;
+  const docsConfidence = agentData?.docsConfidence ?? 0.87;
 
   const lineWidths = useMemo(
     () => docs.map(() => Array.from({ length: 7 }, () => 50 + Math.random() * 40)),
@@ -33,10 +38,10 @@ export function IngestAnimation({ addLog, onComplete }: IngestAnimationProps) {
           addLog({ icon: '📚', text: 'All documents scanned — organizing bookshelf...' });
           timeout = setTimeout(() => {
             setShowConfidence(true);
-            addLog({ icon: '📊', text: 'Docs confidence: 0.87 | Missing: none' });
-            setTimeout(onComplete, 3000);
-          }, 1200);
-        }, 600);
+            addLog({ icon: '📊', text: `Docs confidence: ${docsConfidence.toFixed(2)} | Missing: ${agentData?.missingDocs ? 'yes' : 'none'}` });
+            setTimeout(onComplete, 1000);
+          }, 400);
+        }, 200);
         return;
       }
 
@@ -51,12 +56,12 @@ export function IngestAnimation({ addLog, onComplete }: IngestAnimationProps) {
         timeout = setTimeout(() => {
           setScannedDocs(prev => [...prev, docs[i]]);
           setScanPhase('idle');
-          timeout = setTimeout(() => scanDoc(i + 1), 400);
-        }, 800);
-      }, 1800);
+          timeout = setTimeout(() => scanDoc(i + 1), 150);
+        }, 300);
+      }, 650);
     };
 
-    timeout = setTimeout(() => scanDoc(0), 500);
+    timeout = setTimeout(() => scanDoc(0), 200);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -349,13 +354,13 @@ export function IngestAnimation({ addLog, onComplete }: IngestAnimationProps) {
                     strokeLinecap="round"
                     strokeDasharray="157"
                     initial={{ strokeDashoffset: 157 }}
-                    animate={{ strokeDashoffset: 157 * (1 - 0.87) }}
+                    animate={{ strokeDashoffset: 157 * (1 - docsConfidence) }}
                     transition={{ duration: 1.5, ease: 'easeOut' }}
                   />
                 </svg>
               </div>
               <p className="text-xs font-mono text-muted-foreground">
-                Document Confidence: <span className="text-cyan font-bold">0.87</span>
+                Document Confidence: <span className="text-cyan font-bold">{docsConfidence.toFixed(2)}</span>
               </p>
             </motion.div>
           )}

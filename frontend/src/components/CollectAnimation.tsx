@@ -3,11 +3,14 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MOCK_DOCUMENTS, type LogEntry } from '@/lib/claim-data';
+import type { CollectAgentData } from '@/lib/agent-data-mapper';
+import { getDocTypeStyle } from '@/lib/doc-type-styles';
 
 interface CollectAnimationProps {
   addLog: (log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   onComplete: () => void;
   onReportGenerated: (report: { name: string; color: string }) => void;
+  agentData?: CollectAgentData;
 }
 
 const DOC_SLOTS = [
@@ -18,20 +21,37 @@ const DOC_SLOTS = [
   { type: 'Receipt', icon: '🧾', color: 'oklch(0.7 0.17 160)', label: 'Receipts' },
 ];
 
-export function CollectAnimation({ addLog, onComplete, onReportGenerated }: CollectAnimationProps) {
+export function CollectAnimation({ addLog, onComplete, onReportGenerated, agentData }: CollectAnimationProps) {
   const [droppedCount, setDroppedCount] = useState(0);
   const [pressing, setPressing] = useState(false);
   const [showPdf, setShowPdf] = useState(false);
   const [showStamp, setShowStamp] = useState(false);
   const startedRef = useRef(false);
 
-  const docGroups = [
-    { type: 'Policy', docs: MOCK_DOCUMENTS.filter(d => d.type === 'Policy') },
-    { type: 'ClaimForm', docs: MOCK_DOCUMENTS.filter(d => d.type === 'ClaimForm') },
-    { type: 'BagReport', docs: MOCK_DOCUMENTS.filter(d => d.type === 'BagReport') },
-    { type: 'FlightTicket', docs: MOCK_DOCUMENTS.filter(d => d.type === 'FlightTicket') },
-    { type: 'Receipt', docs: MOCK_DOCUMENTS.filter(d => d.type === 'Receipt') },
-  ];
+  const docGroups = agentData && Object.keys(agentData.docsByType).length > 0
+    ? Object.entries(agentData.docsByType).map(([type, filenames]) => ({
+        type,
+        docs: filenames.map((fn, i) => {
+          const style = getDocTypeStyle(type);
+          const found = agentData.documents.find(d => d.name === fn);
+          return {
+            id: `${type}-${i}`,
+            name: fn,
+            size: found?.size ?? '—',
+            type: type as 'Policy' | 'ClaimForm' | 'BagReport' | 'FlightTicket' | 'Receipt',
+            confidence: found?.confidence ?? 0,
+            icon: style.icon,
+            color: style.color,
+          };
+        }),
+      }))
+    : [
+        { type: 'Policy', docs: MOCK_DOCUMENTS.filter(d => d.type === 'Policy') },
+        { type: 'ClaimForm', docs: MOCK_DOCUMENTS.filter(d => d.type === 'ClaimForm') },
+        { type: 'BagReport', docs: MOCK_DOCUMENTS.filter(d => d.type === 'BagReport') },
+        { type: 'FlightTicket', docs: MOCK_DOCUMENTS.filter(d => d.type === 'FlightTicket') },
+        { type: 'Receipt', docs: MOCK_DOCUMENTS.filter(d => d.type === 'Receipt') },
+      ];
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -50,11 +70,11 @@ export function CollectAnimation({ addLog, onComplete, onReportGenerated }: Coll
           icon: '✓',
           text: `${g.type}: ${g.docs.length} file(s), confidence ${avgConf.toFixed(2)}`,
         });
-      }, 600 + i * 700));
+      }, 300 + i * 350));
     });
 
     // Press phase
-    const pressStart = 600 + docGroups.length * 700 + 400;
+    const pressStart = 300 + docGroups.length * 350 + 200;
     t.push(setTimeout(() => {
       setPressing(true);
       addLog({ icon: '📊', text: 'Document-set confidence: 0.89' });
@@ -66,15 +86,15 @@ export function CollectAnimation({ addLog, onComplete, onReportGenerated }: Coll
       setShowPdf(true);
       addLog({ icon: '�', text: 'Evidence Collection ready' });
       onReportGenerated({ name: 'Evidence Collection', color: 'oklch(0.55 0.2 270)' });
-    }, pressStart + 1500));
+    }, pressStart + 750));
 
     // Show stamp
     t.push(setTimeout(() => {
       setShowStamp(true);
-    }, pressStart + 2200));
+    }, pressStart + 1100));
 
     // Complete
-    t.push(setTimeout(onComplete, pressStart + 4000));
+    t.push(setTimeout(onComplete, pressStart + 2000));
 
     return () => t.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps

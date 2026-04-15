@@ -66,6 +66,7 @@ def classify_text(text: str) -> Tuple[str, float]:
         input=[
             {"role": "user", "content": f"Classify this document:\n-----\n{snippet}\n-----"},
         ],
+        timeout=60,
     )
     match = re.search(r"\{.*\}", resp.output_text or "", re.S)
     if not match:

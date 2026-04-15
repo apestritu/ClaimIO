@@ -14,6 +14,7 @@ export interface AgentEvent {
 export interface PipelineState {
   isRunning: boolean;
   events: AgentEvent[];
+  agentEvents: Record<string, AgentEvent[]>;
   currentAgent: string | null;
   completedAgents: string[];
   error: string | null;
@@ -23,6 +24,7 @@ export interface PipelineState {
 const INITIAL_STATE: PipelineState = {
   isRunning: false,
   events: [],
+  agentEvents: {},
   currentAgent: null,
   completedAgents: [],
   error: null,
@@ -82,6 +84,9 @@ export function useEventStream() {
 
             setState((prev) => {
               const events = [...prev.events, event];
+              const agentEvents = { ...prev.agentEvents };
+              if (!agentEvents[event.agent]) agentEvents[event.agent] = [];
+              agentEvents[event.agent] = [...agentEvents[event.agent], event];
               const completedAgents = [...prev.completedAgents];
               let currentAgent = prev.currentAgent;
               let finalSummary = prev.finalSummary;
@@ -94,9 +99,9 @@ export function useEventStream() {
                 if (!completedAgents.includes(event.agent)) {
                   completedAgents.push(event.agent);
                 }
-                if (event.agent === currentAgent) {
-                  currentAgent = null;
-                }
+                // Don't clear currentAgent here — keep showing the animation
+                // until the next agent starts working, so the component can
+                // re-render with the completed event data.
               }
 
               if (
@@ -110,6 +115,14 @@ export function useEventStream() {
                 >;
               }
 
+              // Clear currentAgent when Orchestrator finishes so Done view shows
+              if (
+                event.agent === "Orchestrator" &&
+                (event.status === "completed" || event.status === "failed")
+              ) {
+                currentAgent = null;
+              }
+
               const isRunning = !(
                 event.agent === "Orchestrator" &&
                 (event.status === "completed" || event.status === "failed")
@@ -118,6 +131,7 @@ export function useEventStream() {
               return {
                 ...prev,
                 events,
+                agentEvents,
                 currentAgent,
                 completedAgents,
                 finalSummary,

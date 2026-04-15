@@ -3,12 +3,14 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { LogEntry } from '@/lib/claim-data';
+import type { ValidateAgentData } from '@/lib/agent-data-mapper';
 
 interface ValidateAnimationProps {
   addLog: (log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   onComplete: () => void;
   scenario: 'happy' | 'missing';
   onSwitchScenario: () => void;
+  agentData?: ValidateAgentData;
 }
 
 const REQUIRED_DOCS = [
@@ -21,18 +23,21 @@ const REQUIRED_DOCS = [
 
 type EmailPhase = 'hidden' | 'composing' | 'typed' | 'sending' | 'sent';
 
-export function ValidateAnimation({ addLog, onComplete, scenario, onSwitchScenario }: ValidateAnimationProps) {
+export function ValidateAnimation({ addLog, onComplete, scenario: scenarioProp, onSwitchScenario, agentData }: ValidateAnimationProps) {
+  const scenario = scenarioProp;
   const [checkedIndex, setCheckedIndex] = useState(-1);
   const [showResult, setShowResult] = useState(false);
   const [emailPhase, setEmailPhase] = useState<EmailPhase>('hidden');
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  const docs = REQUIRED_DOCS.map(d => ({
-    ...d,
-    present: scenario === 'missing'
-      ? (d.type !== 'BagReport' && d.type !== 'Receipt')
-      : true,
-  }));
+  const docs = agentData
+    ? agentData.checklist.map(c => ({ type: c.requirement, present: scenario === 'happy' ? true : c.status === 'provided' }))
+    : REQUIRED_DOCS.map(d => ({
+        ...d,
+        present: scenario === 'missing'
+          ? (d.type !== 'BagReport' && d.type !== 'Receipt')
+          : true,
+      }));
 
   useEffect(() => {
     // Clear all previous timers and reset state on scenario change
@@ -42,18 +47,20 @@ export function ValidateAnimation({ addLog, onComplete, scenario, onSwitchScenar
     setShowResult(false);
     setEmailPhase('hidden');
 
-    const currentDocs = REQUIRED_DOCS.map(d => ({
-      ...d,
-      present: scenario === 'missing'
-        ? (d.type !== 'BagReport' && d.type !== 'Receipt')
-        : true,
-    }));
+    const currentDocs = agentData
+      ? agentData.checklist.map(c => ({ type: c.requirement, present: scenario === 'happy' ? true : c.status === 'provided' }))
+      : REQUIRED_DOCS.map(d => ({
+          ...d,
+          present: scenario === 'missing'
+            ? (d.type !== 'BagReport' && d.type !== 'Receipt')
+            : true,
+        }));
 
     addLog({ icon: '📋', text: 'Checking required documents...' });
 
     // Schedule all checks upfront so every timer is tracked
-    const CHECK_DELAY = 500;
-    const INITIAL_DELAY = 500;
+    const CHECK_DELAY = 250;
+    const INITIAL_DELAY = 250;
 
     currentDocs.forEach((doc, i) => {
       const t = setTimeout(() => {
@@ -66,29 +73,29 @@ export function ValidateAnimation({ addLog, onComplete, scenario, onSwitchScenar
       timersRef.current.push(t);
     });
 
-    const afterAll = INITIAL_DELAY + currentDocs.length * CHECK_DELAY + 400;
+    const afterAll = INITIAL_DELAY + currentDocs.length * CHECK_DELAY + 200;
 
     const tResult = setTimeout(() => {
       setShowResult(true);
       if (scenario === 'happy') {
         addLog({ icon: '✅', text: 'All required documents present' });
-        const tDone = setTimeout(onComplete, 2000);
+        const tDone = setTimeout(onComplete, 1000);
         timersRef.current.push(tDone);
       } else {
         addLog({ icon: '📧', text: 'Composing notification email...' });
-        const t1 = setTimeout(() => setEmailPhase('composing'), 600);
+        const t1 = setTimeout(() => setEmailPhase('composing'), 300);
         const t2 = setTimeout(() => {
           setEmailPhase('typed');
           addLog({ icon: '✏️', text: 'Email drafted — requesting BagReport, Receipt' });
-        }, 2800);
+        }, 1400);
         const t3 = setTimeout(() => {
           setEmailPhase('sending');
           addLog({ icon: '📤', text: 'Sending email to claimant...' });
-        }, 4200);
+        }, 2100);
         const t4 = setTimeout(() => {
           setEmailPhase('sent');
           addLog({ icon: '✅', text: 'Email delivered — Attempt 1/2' });
-        }, 5800);
+        }, 2900);
         timersRef.current.push(t1, t2, t3, t4);
       }
     }, afterAll);

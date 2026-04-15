@@ -21,6 +21,7 @@ from orchestrator import run_pipeline
 
 # --------------- JSON-file claim history ---------------
 HISTORY_PATH = Path(__file__).resolve().parent / "data" / "history.json"
+RUNS_DIR = Path(__file__).resolve().parent / "data" / "runs"
 
 
 def _load_history() -> list[dict]:
@@ -37,9 +38,27 @@ def _persist_history(history: list[dict]) -> None:
     HISTORY_PATH.write_text(json.dumps(history, indent=2), encoding="utf-8")
 
 
+def _strip_event(evt: dict) -> dict:
+    """Remove large raw text fields from event data to keep run files small."""
+    cleaned = {**evt}
+    data = cleaned.get("data")
+    if isinstance(data, dict):
+        data = {**data}
+        data.pop("text", None)
+        data.pop("raw", None)
+        if "evaluation" in data:
+            data["evaluation"] = [
+                {k: v for k, v in row.items() if k != "facts"}
+                for row in data["evaluation"]
+            ]
+        cleaned["data"] = data
+    return cleaned
+
+
 def _save_run(case_id: str, events: list[dict], status: str, summary: dict | None) -> dict:
+    run_id = uuid.uuid4().hex[:12]
     entry = {
-        "id": uuid.uuid4().hex[:12],
+        "id": run_id,
         "case_id": case_id,
         "status": status,
         "started_at": events[0]["timestamp"] if events else time.time(),
@@ -51,6 +70,19 @@ def _save_run(case_id: str, events: list[dict], status: str, summary: dict | Non
     history = _load_history()
     history.insert(0, entry)
     _persist_history(history)
+
+    # Save full events to per-run file
+    RUNS_DIR.mkdir(parents=True, exist_ok=True)
+    run_file = RUNS_DIR / f"{run_id}.json"
+    run_data = {
+        "id": run_id,
+        "case_id": case_id,
+        "started_at": entry["started_at"],
+        "finished_at": entry["finished_at"],
+        "events": [_strip_event(e) for e in events],
+    }
+    run_file.write_text(json.dumps(run_data, indent=2), encoding="utf-8")
+
     return entry
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
@@ -152,22 +184,41 @@ async def get_history():
     return {"runs": _load_history()}
 
 
+@app.get("/api/history/{run_id}/events")
+async def get_run_events(run_id: str):
+    """Fetch the full saved event stream for a past run."""
+    run_file = RUNS_DIR / f"{run_id}.json"
+    if not run_file.exists():
+        raise HTTPException(status_code=404, detail="Run events not found")
+    try:
+        data = json.loads(run_file.read_text(encoding="utf-8"))
+        return data
+    except (json.JSONDecodeError, OSError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @app.delete("/api/history/{run_id}")
 async def delete_history_entry(run_id: str):
-    """Delete a single history entry."""
+    """Delete a single history entry and its run file."""
     history = _load_history()
     filtered = [h for h in history if h["id"] != run_id]
     if len(filtered) == len(history):
         raise HTTPException(status_code=404, detail="Run not found")
     _persist_history(filtered)
+    run_file = RUNS_DIR / f"{run_id}.json"
+    if run_file.exists():
+        run_file.unlink()
     return {"deleted": run_id}
 
 
 @app.delete("/api/history")
 async def clear_history():
-    """Clear all history."""
+    """Clear all history and run files."""
     count = len(_load_history())
     _persist_history([])
+    if RUNS_DIR.exists():
+        for f in RUNS_DIR.glob("*.json"):
+            f.unlink()
     return {"cleared": count}
 
 

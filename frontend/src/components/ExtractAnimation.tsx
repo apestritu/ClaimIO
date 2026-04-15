@@ -3,11 +3,14 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MOCK_DOCUMENTS, type LogEntry } from '@/lib/claim-data';
+import type { ExtractAgentData } from '@/lib/agent-data-mapper';
+import { getDocTypeStyle } from '@/lib/doc-type-styles';
 
 interface ExtractAnimationProps {
   addLog: (log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   onComplete: () => void;
   onReportGenerated: (report: { name: string; color: string }) => void;
+  agentData?: ExtractAgentData;
 }
 
 interface FactBubble {
@@ -44,7 +47,7 @@ const DOC_FACTS: Record<string, FactBubble[]> = {
 
 const LANE_COUNT = 4;
 
-export function ExtractAnimation({ addLog, onComplete, onReportGenerated }: ExtractAnimationProps) {
+export function ExtractAnimation({ addLog, onComplete, onReportGenerated, agentData }: ExtractAnimationProps) {
   const [activeLanes, setActiveLanes] = useState<(typeof MOCK_DOCUMENTS[0] | null)[]>(Array(LANE_COUNT).fill(null));
   const [processedDocs, setProcessedDocs] = useState<string[]>([]);
   const [extractedFacts, setExtractedFacts] = useState<FactBubble[]>([]);
@@ -52,7 +55,17 @@ export function ExtractAnimation({ addLog, onComplete, onReportGenerated }: Extr
   const [showCurrencyFlip, setShowCurrencyFlip] = useState(false);
   const startedRef = useRef(false);
 
-  const uniqueDocs = MOCK_DOCUMENTS.filter((d, i, arr) => arr.findIndex(x => x.type === d.type) === i);
+  const uniqueDocs = agentData
+    ? agentData.extractions.map((ext, i) => ({
+        id: String(i + 1),
+        name: ext.filename,
+        size: '—',
+        type: ext.docType as typeof MOCK_DOCUMENTS[0]['type'],
+        confidence: ext.confidence,
+        icon: ext.icon,
+        color: ext.color,
+      }))
+    : MOCK_DOCUMENTS.filter((d, i, arr) => arr.findIndex(x => x.type === d.type) === i);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -118,7 +131,7 @@ export function ExtractAnimation({ addLog, onComplete, onReportGenerated }: Extr
           return (
             <motion.div
               key={doc.id}
-              className="w-20 h-10 rounded-lg flex items-center gap-1.5 px-2 text-[8px] font-mono"
+              className="w-24 h-11 rounded-lg flex items-center gap-1.5 px-2 text-[10px] font-mono"
               style={{
                 background: 'oklch(0.2 0.02 256)',
                 border: `1px solid ${isDone ? 'oklch(0.7 0.17 160 / 50%)' : isActive ? 'oklch(0.7 0.15 195 / 50%)' : 'oklch(0.3 0.02 256)'}`,
@@ -136,7 +149,7 @@ export function ExtractAnimation({ addLog, onComplete, onReportGenerated }: Extr
       </div>
 
       {/* Parallel lanes label */}
-      <div className="flex items-center gap-1.5 text-[9px] font-mono text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground">
         <span>⚡</span>
         <span>{LANE_COUNT} parallel workers</span>
       </div>
@@ -190,8 +203,8 @@ export function ExtractAnimation({ addLog, onComplete, onReportGenerated }: Extr
 
                     {/* Doc info */}
                     <div className="flex-1 min-w-0">
-                      <div className="text-[9px] font-mono text-foreground truncate">{doc.name}</div>
-                      <div className="text-[8px] font-mono text-muted-foreground">{doc.type} — extracting...</div>
+                      <div className="text-[11px] font-mono text-foreground truncate">{doc.name}</div>
+                      <div className="text-[10px] font-mono text-muted-foreground">{doc.type} — extracting...</div>
                     </div>
 
                     {/* Sparkle particles */}
@@ -214,7 +227,7 @@ export function ExtractAnimation({ addLog, onComplete, onReportGenerated }: Extr
                       {(DOC_FACTS[doc.type] || []).map((fact, fi) => (
                         <motion.div
                           key={fact.id}
-                          className="px-1.5 py-0.5 rounded-full text-[7px] font-mono whitespace-nowrap"
+                          className="px-2 py-0.5 rounded-full text-[9px] font-mono whitespace-nowrap"
                           style={{
                             background: `${fact.color}20`,
                             border: `1px solid ${fact.color}40`,
@@ -233,7 +246,7 @@ export function ExtractAnimation({ addLog, onComplete, onReportGenerated }: Extr
               </AnimatePresence>
 
               {!doc && (
-                <div className="text-[8px] font-mono text-muted-foreground/30">
+                <div className="text-[10px] font-mono text-muted-foreground/30">
                   Thread {laneIdx + 1} — idle
                 </div>
               )}
@@ -267,7 +280,7 @@ export function ExtractAnimation({ addLog, onComplete, onReportGenerated }: Extr
             >
               $
             </motion.span>
-            <span className="text-[8px] font-mono text-muted-foreground ml-1">EUR → USD normalized</span>
+            <span className="text-[10px] font-mono text-muted-foreground ml-1">EUR → USD normalized</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -306,7 +319,7 @@ export function ExtractAnimation({ addLog, onComplete, onReportGenerated }: Extr
                 />
               ))}
             </motion.div>
-            <p className="text-[10px] font-mono text-cyan">
+            <p className="text-[13px] font-mono text-cyan">
               Fact Map — {extractedFacts.length} facts extracted
             </p>
           </motion.div>

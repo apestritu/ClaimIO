@@ -3,12 +3,14 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { LogEntry } from '@/lib/claim-data';
+import type { NotifyAgentData } from '@/lib/agent-data-mapper';
 
 interface NotifyAnimationProps {
   addLog: (log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   onComplete: () => void;
   onReportGenerated?: (report: { name: string; color: string }) => void;
   onRestart: () => void;
+  agentData?: NotifyAgentData;
 }
 
 type Stage = 'pdf' | 'email' | 'closed';
@@ -23,7 +25,7 @@ const SUMMARY_ROWS = [
 ];
 
 
-export function NotifyAnimation({ addLog, onComplete, onReportGenerated, onRestart }: NotifyAnimationProps) {
+export function NotifyAnimation({ addLog, onComplete, onReportGenerated, onRestart, agentData }: NotifyAnimationProps) {
   const [stage, setStage] = useState<Stage>('pdf');
   const [visibleRows, setVisibleRows] = useState(0);
   const [pdfDone, setPdfDone] = useState(false);
@@ -33,7 +35,17 @@ export function NotifyAnimation({ addLog, onComplete, onReportGenerated, onResta
   const [showRestart, setShowRestart] = useState(false);
   const startedRef = useRef(false);
 
-  const fullEmailText = 'We have completed the assessment of your claim.\nDecision: APPROVED\nAmount: $487.30\nAI confidence score: 0.74';
+  const summaryRows = agentData
+    ? [
+        { label: 'Status', value: String(agentData.summary.claim_status ?? 'UNKNOWN') },
+        { label: 'Approved Amount', value: `$${Number(agentData.summary.approved_amount ?? 0).toFixed(2)}` },
+        { label: 'AI Confidence', value: String(Number(agentData.summary.global_confidence ?? 0).toFixed(2)) },
+        { label: 'Coverage Confidence', value: String(Number(agentData.summary.coverage_confidence ?? 0).toFixed(2)) },
+        { label: 'Documents Processed', value: String(agentData.summary.documents_processed ?? 0) },
+        { label: 'Fraud Risk', value: String(Number(agentData.summary.fraud_risk ?? 0).toFixed(2)) },
+      ]
+    : SUMMARY_ROWS;
+  const fullEmailText = agentData?.emailPreview || 'We have completed the assessment of your claim.\nDecision: APPROVED\nAmount: $487.30\nAI confidence score: 0.74';
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -42,23 +54,23 @@ export function NotifyAnimation({ addLog, onComplete, onReportGenerated, onResta
     addLog({ icon: '📄', text: 'Building Coverage Checking report...' });
 
     // Part A — PDF build rows
-    SUMMARY_ROWS.forEach((_, i) => {
+    summaryRows.forEach((_, i) => {
       setTimeout(() => setVisibleRows(i + 1), 500 + i * 350);
     });
 
     const t1 = setTimeout(() => {
       setPdfDone(true);
       addLog({ icon: '✅', text: 'Coverage check complete' });
-    }, 500 + SUMMARY_ROWS.length * 350 + 500);
+    }, 500 + summaryRows.length * 350 + 500);
 
     // Part B — Email
     const t2 = setTimeout(() => {
       setStage('email');
       addLog({ icon: '📧', text: 'Sending final decision to claimant...' });
-    }, 500 + SUMMARY_ROWS.length * 350 + 1800);
+    }, 500 + summaryRows.length * 350 + 1800);
 
     // Typewriter text
-    const emailStartTime = 500 + SUMMARY_ROWS.length * 350 + 2300;
+    const emailStartTime = 500 + summaryRows.length * 350 + 2300;
     const charTimers: ReturnType<typeof setTimeout>[] = [];
     fullEmailText.split('').forEach((char, i) => {
       charTimers.push(setTimeout(() => {
@@ -122,7 +134,7 @@ export function NotifyAnimation({ addLog, onComplete, onReportGenerated, onResta
 
           {/* Rows */}
           <div className="p-3 space-y-1">
-            {SUMMARY_ROWS.slice(0, visibleRows).map((row, i) => (
+            {summaryRows.slice(0, visibleRows).map((row, i) => (
               <motion.div
                 key={row.label}
                 className="flex justify-between py-1 px-2 rounded-md"

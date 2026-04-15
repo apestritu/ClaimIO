@@ -58,6 +58,22 @@ async def run_evidence_collection(ctx: dict, bus: EventBus) -> dict:
                 "confidence": 0.0,
             })
 
+    missing_types = [req for req in sorted(REQUIRED_TYPES) if req not in provided]
+    scenario = "happy" if len(missing_types) == 0 else "missing"
+
+    await bus.publish(TaskEvent(
+        agent="EvidenceCollectionAgent",
+        status=TaskStatus.WORKING,
+        message=f"Validation: {len(provided)}/{len(REQUIRED_TYPES)} required types present. Scenario: {scenario}",
+        data={
+            "checklist": checklist,
+            "scenario": scenario,
+            "missing_types": missing_types,
+            "provided_count": len(provided),
+            "total_required": len(REQUIRED_TYPES),
+        },
+    ))
+
     await bus.publish(TaskEvent(
         agent="EvidenceCollectionAgent",
         status=TaskStatus.COMPLETED,
@@ -67,6 +83,7 @@ async def run_evidence_collection(ctx: dict, bus: EventBus) -> dict:
             "docs_confidence": round(docs_confidence, 3),
             "provided_count": len(provided),
             "total_required": len(REQUIRED_TYPES),
+            "docs_by_type": {dt: info["filenames"] for dt, info in provided.items()},
         },
     ))
 

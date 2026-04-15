@@ -40,6 +40,7 @@ async def run_compliance(ctx: dict, bus: EventBus) -> dict:
         "sanctions_confidence": sanc_conf,
         "fraud_risk_score": fraud_score,
         "claimant_name": claimant_name,
+        "receipt_amounts": receipt_amounts,
     }
 
     await bus.publish(TaskEvent(

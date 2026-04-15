@@ -1,8 +1,8 @@
 "use client";
 
-import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { Zap } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Zap, ChevronLeft, ChevronRight } from "lucide-react";
 import { LandingHero } from "./LandingHero";
 import { LandingPain } from "./LandingPain";
 import { LandingTransition } from "./LandingTransition";
@@ -12,31 +12,96 @@ interface LandingPageProps {
   onEnter: () => void;
 }
 
-export function LandingPage({ onEnter }: LandingPageProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ container: containerRef });
+const SLIDE_LABELS = ["Scenarios", "The Problem", "Transition", "Solution"];
 
-  const navOpacity = useTransform(scrollYProgress, [0, 0.05], [0, 1]);
-  const navBackdrop = useTransform(scrollYProgress, [0, 0.05], ["blur(0px)", "blur(12px)"]);
+const slideVariants = {
+  enter: (dir: number) => ({
+    x: dir > 0 ? "100%" : "-100%",
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (dir: number) => ({
+    x: dir > 0 ? "-100%" : "100%",
+    opacity: 0,
+  }),
+};
+
+export function LandingPage({ onEnter }: LandingPageProps) {
+  const [slideIndex, setSlideIndex] = useState(0);
+  const [direction, setDirection] = useState(0);
+  const isAnimating = useRef(false);
+  const totalSlides = 4;
+
+  const goTo = useCallback(
+    (index: number) => {
+      if (isAnimating.current) return;
+      if (index < 0 || index >= totalSlides || index === slideIndex) return;
+      setDirection(index > slideIndex ? 1 : -1);
+      setSlideIndex(index);
+      isAnimating.current = true;
+    },
+    [slideIndex]
+  );
+
+  const next = useCallback(() => goTo(slideIndex + 1), [goTo, slideIndex]);
+  const prev = useCallback(() => goTo(slideIndex - 1), [goTo, slideIndex]);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        next();
+      } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        prev();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [next, prev]);
 
   return (
-    <div ref={containerRef} className="h-screen overflow-y-auto scroll-smooth" style={{ background: "oklch(0.09 0.01 256)" }}>
-      {/* Floating nav bar */}
-      <motion.nav
-        className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3"
+    <div
+      className="h-screen w-screen overflow-hidden relative flex flex-col"
+      style={{ background: "oklch(0.09 0.01 256)" }}
+    >
+      {/* Top nav bar */}
+      <nav
+        className="flex items-center justify-between px-6 py-3 z-50 shrink-0"
         style={{
-          opacity: navOpacity,
-          backdropFilter: navBackdrop,
-          background: "oklch(0.09 0.01 256 / 80%)",
-          borderBottom: "1px solid oklch(0.2 0.02 256 / 50%)",
+          background: "oklch(0.09 0.01 256 / 90%)",
+          borderBottom: "1px solid oklch(0.2 0.02 256 / 30%)",
+          backdropFilter: "blur(12px)",
         }}
       >
         <div className="flex items-center gap-2">
-          <Zap size={18} style={{ color: "oklch(0.62 0.19 250)" }} />
-          <span className="text-sm font-bold" style={{ color: "oklch(0.62 0.19 250)" }}>
-            ClaimIO
-          </span>
+          <motion.div
+            className="w-8 h-8 rounded-lg flex items-center justify-center"
+            style={{
+              background: "oklch(0.62 0.19 250 / 12%)",
+              border: "1px solid oklch(0.62 0.19 250 / 25%)",
+            }}
+          >
+            <Zap size={16} style={{ color: "oklch(0.62 0.19 250)" }} />
+          </motion.div>
+          <div>
+            <span className="text-sm font-bold" style={{ color: "oklch(0.62 0.19 250)" }}>
+              ClaimIO
+            </span>
+            <span className="text-[8px] text-muted-foreground ml-2 tracking-widest uppercase hidden sm:inline">
+              Automated Claim Intelligence
+            </span>
+          </div>
         </div>
+
+        {/* Slide label */}
+        <div className="absolute left-1/2 -translate-x-1/2 text-[10px] font-mono text-muted-foreground">
+          {slideIndex + 1}/{totalSlides} · {SLIDE_LABELS[slideIndex]}
+        </div>
+
         <motion.button
           className="px-4 py-1.5 rounded-full text-[10px] font-semibold"
           style={{
@@ -50,54 +115,94 @@ export function LandingPage({ onEnter }: LandingPageProps) {
         >
           Launch App →
         </motion.button>
-      </motion.nav>
+      </nav>
 
-      {/* Hero brand header (visible at top) */}
-      <div className="flex items-center justify-center pt-12 pb-4">
-        <motion.div
-          className="flex items-center gap-3"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
+      {/* Slide area */}
+      <div className="flex-1 relative overflow-hidden">
+        <AnimatePresence
+          initial={false}
+          custom={direction}
+          mode="wait"
+          onExitComplete={() => {
+            isAnimating.current = false;
+          }}
         >
           <motion.div
-            className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{
-              background: "oklch(0.62 0.19 250 / 12%)",
-              border: "1px solid oklch(0.62 0.19 250 / 25%)",
-            }}
+            key={slideIndex}
+            custom={direction}
+            variants={slideVariants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ type: "tween", duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
+            className="absolute inset-0 overflow-y-auto"
           >
-            <Zap size={20} style={{ color: "oklch(0.62 0.19 250)" }} />
+            {slideIndex === 0 && <LandingHero />}
+            {slideIndex === 1 && <LandingPain />}
+            {slideIndex === 2 && <LandingTransition />}
+            {slideIndex === 3 && <LandingSolution onEnter={onEnter} />}
           </motion.div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight" style={{ color: "oklch(0.62 0.19 250)" }}>
-              ClaimIO
-            </h1>
-            <p className="text-[9px] text-muted-foreground tracking-widest uppercase">
-              Automated Claim Intelligence
-            </p>
-          </div>
-        </motion.div>
+        </AnimatePresence>
       </div>
 
-      {/* Section 1 — Cinematic Scenarios */}
-      <LandingHero />
+      {/* Bottom controls */}
+      <div
+        className="flex items-center justify-center gap-4 py-3 shrink-0 z-50"
+        style={{
+          background: "oklch(0.09 0.01 256 / 90%)",
+          borderTop: "1px solid oklch(0.2 0.02 256 / 30%)",
+          backdropFilter: "blur(12px)",
+        }}
+      >
+        {/* Prev button */}
+        <button
+          onClick={prev}
+          disabled={slideIndex === 0}
+          className="p-1.5 rounded-lg hover:bg-glass-border transition-colors disabled:opacity-20"
+          style={{ color: "oklch(0.62 0.19 250)" }}
+        >
+          <ChevronLeft size={18} />
+        </button>
 
-      {/* Section 2 — Pain Visualization */}
-      <LandingPain />
+        {/* Dot indicators */}
+        <div className="flex items-center gap-2">
+          {SLIDE_LABELS.map((label, i) => (
+            <button
+              key={label}
+              onClick={() => goTo(i)}
+              className="group flex flex-col items-center gap-1"
+            >
+              <motion.div
+                className="rounded-full transition-colors"
+                style={{
+                  width: i === slideIndex ? 24 : 8,
+                  height: 8,
+                  background: i === slideIndex
+                    ? "oklch(0.62 0.19 250)"
+                    : "oklch(0.3 0.02 256)",
+                }}
+                layout
+                transition={{ type: "spring", stiffness: 300, damping: 25 }}
+              />
+            </button>
+          ))}
+        </div>
 
-      {/* Section 3 — Transition */}
-      <LandingTransition />
+        {/* Next button */}
+        <button
+          onClick={next}
+          disabled={slideIndex === totalSlides - 1}
+          className="p-1.5 rounded-lg hover:bg-glass-border transition-colors disabled:opacity-20"
+          style={{ color: "oklch(0.62 0.19 250)" }}
+        >
+          <ChevronRight size={18} />
+        </button>
 
-      {/* Section 4 — Solution */}
-      <LandingSolution onEnter={onEnter} />
-
-      {/* Footer */}
-      <footer className="py-8 text-center" style={{ background: "oklch(0.08 0.01 256)" }}>
-        <p className="text-[9px] text-muted-foreground/40 font-mono">
-          Built with AI Agents · ClaimIO © {new Date().getFullYear()}
-        </p>
-      </footer>
+        {/* Keyboard hint */}
+        <span className="text-[8px] text-muted-foreground/40 font-mono ml-3">
+          ← → arrows
+        </span>
+      </div>
     </div>
   );
 }

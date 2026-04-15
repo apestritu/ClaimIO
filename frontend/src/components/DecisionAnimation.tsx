@@ -3,10 +3,12 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { LogEntry } from '@/lib/claim-data';
+import type { DecisionAgentData } from '@/lib/agent-data-mapper';
 
 interface DecisionAnimationProps {
   addLog: (log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   onComplete: () => void;
+  agentData?: DecisionAgentData;
 }
 
 interface MetricCard {
@@ -30,7 +32,12 @@ const THRESHOLD = 0.70;
 
 type Stage = 'metrics' | 'merge' | 'doors' | 'verdict';
 
-export function DecisionAnimation({ addLog, onComplete }: DecisionAnimationProps) {
+export function DecisionAnimation({ addLog, onComplete, agentData }: DecisionAnimationProps) {
+  const metrics = agentData?.metrics ?? METRICS;
+  const gScore = agentData?.globalConfidence ?? G_SCORE;
+  const threshold = agentData?.threshold ?? THRESHOLD;
+  const decisionStatus = agentData?.status ?? 'APPROVED';
+  const decisionAmount = agentData?.amount ?? 487.30;
   const [stage, setStage] = useState<Stage>('metrics');
   const [visibleMetrics, setVisibleMetrics] = useState(0);
   const [showGScore, setShowGScore] = useState(false);
@@ -48,7 +55,7 @@ export function DecisionAnimation({ addLog, onComplete }: DecisionAnimationProps
     addLog({ icon: '⚖️', text: 'Computing global confidence...' });
 
     // Show metrics one by one
-    METRICS.forEach((m, i) => {
+    metrics.forEach((m, i) => {
       setTimeout(() => {
         setVisibleMetrics(i + 1);
         const contrib = m.subtract ? -(m.value * m.weight) : m.value * m.weight;
@@ -56,46 +63,49 @@ export function DecisionAnimation({ addLog, onComplete }: DecisionAnimationProps
           icon: '→',
           text: `${m.label}: ${m.value.toFixed(2)} × ${m.weight.toFixed(2)} = ${m.subtract ? '' : ''}${contrib.toFixed(3)}`,
         });
-      }, 600 + i * 600);
+      }, 300 + i * 300);
     });
 
     // Merge into G score
     const t1 = setTimeout(() => {
       setStage('merge');
       setShowGScore(true);
-      addLog({ icon: '📊', text: `G = ${G_SCORE.toFixed(2)} (threshold: ${THRESHOLD.toFixed(2)})` });
-    }, 600 + METRICS.length * 600 + 500);
+      addLog({ icon: '📊', text: `G = ${gScore.toFixed(2)} (threshold: ${threshold.toFixed(2)})` });
+    }, 300 + metrics.length * 300 + 250);
 
     const t2 = setTimeout(() => {
       setShowThreshold(true);
-      addLog({ icon: '✅', text: 'Above automatic threshold' });
-    }, 600 + METRICS.length * 600 + 1500);
+      const aboveThreshold = gScore >= threshold;
+      addLog({ icon: aboveThreshold ? '✅' : '⚠️', text: aboveThreshold ? 'Above automatic threshold' : 'Below automatic threshold' });
+    }, 300 + metrics.length * 300 + 750);
 
     // Doors phase
     const t3 = setTimeout(() => {
       setStage('doors');
-    }, 600 + METRICS.length * 600 + 2500);
+    }, 300 + metrics.length * 300 + 1250);
 
     // Orb bouncing between doors
     const orbTimers: ReturnType<typeof setTimeout>[] = [];
     [0, 1, 2, 0, 2, 1, 0].forEach((door, i) => {
-      orbTimers.push(setTimeout(() => setOrbDoor(door), 600 + METRICS.length * 600 + 2800 + i * 250));
+      orbTimers.push(setTimeout(() => setOrbDoor(door), 300 + metrics.length * 300 + 1400 + i * 125));
     });
 
-    // Select APPROVE door
+    // Select appropriate door based on decision
+    const doorIndex = decisionStatus === 'APPROVED' ? 0 : decisionStatus === 'DENIED' ? 1 : 2;
     const t4 = setTimeout(() => {
-      setSelectedDoor(0); // 0 = approve
+      setSelectedDoor(doorIndex);
       setOrbDoor(-1);
-    }, 600 + METRICS.length * 600 + 4800);
+    }, 300 + metrics.length * 300 + 2400);
 
     // Show verdict banner
+    const verdictIcon = decisionStatus === 'APPROVED' ? '🟢' : decisionStatus === 'DENIED' ? '🔴' : '🟡';
     const t5 = setTimeout(() => {
       setShowVerdict(true);
-      setShowConfetti(true);
-      addLog({ icon: '🟢', text: 'Decision: APPROVED — $487.30' });
-    }, 600 + METRICS.length * 600 + 5500);
+      if (decisionStatus === 'APPROVED') setShowConfetti(true);
+      addLog({ icon: verdictIcon, text: `Decision: ${decisionStatus} — $${decisionAmount.toFixed(2)}` });
+    }, 300 + metrics.length * 300 + 2750);
 
-    const t6 = setTimeout(() => onComplete(), 600 + METRICS.length * 600 + 7500);
+    const t6 = setTimeout(() => onComplete(), 300 + metrics.length * 300 + 3750);
 
     return () => {
       [t1, t2, t3, t4, t5, t6, ...orbTimers].forEach(clearTimeout);
@@ -116,7 +126,7 @@ export function DecisionAnimation({ addLog, onComplete }: DecisionAnimationProps
       {(stage === 'metrics' || stage === 'merge') && !showVerdict && (
         <div className="flex flex-col items-center gap-4">
           <div className="flex gap-4 flex-wrap justify-center">
-            {METRICS.slice(0, visibleMetrics).map((m, i) => (
+            {metrics.slice(0, visibleMetrics).map((m, i) => (
               <motion.div
                 key={m.label}
                 className="w-28 rounded-xl p-3 flex flex-col items-center gap-1"
@@ -173,7 +183,7 @@ export function DecisionAnimation({ addLog, onComplete }: DecisionAnimationProps
                   <div className="text-center">
                     <div className="text-[9px] font-mono text-muted-foreground">G</div>
                     <div className="text-lg font-bold font-mono" style={{ color: 'oklch(0.8 0.16 80)' }}>
-                      {G_SCORE.toFixed(2)}
+                      {gScore.toFixed(2)}
                     </div>
                   </div>
                 </motion.div>
@@ -203,7 +213,7 @@ export function DecisionAnimation({ addLog, onComplete }: DecisionAnimationProps
                       <motion.div
                         className="absolute top-0 bottom-0 w-0.5"
                         style={{
-                          left: `${THRESHOLD * 100}%`,
+                          left: `${threshold * 100}%`,
                           background: 'oklch(0.9 0 0)',
                           boxShadow: '0 0 6px oklch(0.9 0 0)',
                         }}
@@ -212,18 +222,18 @@ export function DecisionAnimation({ addLog, onComplete }: DecisionAnimationProps
                       <motion.div
                         className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full"
                         style={{
-                          background: G_SCORE >= THRESHOLD ? 'oklch(0.7 0.17 160)' : 'oklch(0.65 0.2 15)',
-                          boxShadow: `0 0 10px ${G_SCORE >= THRESHOLD ? 'oklch(0.7 0.17 160)' : 'oklch(0.65 0.2 15)'}`,
+                          background: gScore >= threshold ? 'oklch(0.7 0.17 160)' : 'oklch(0.65 0.2 15)',
+                          boxShadow: `0 0 10px ${gScore >= threshold ? 'oklch(0.7 0.17 160)' : 'oklch(0.65 0.2 15)'}`,
                         }}
                         initial={{ left: '0%' }}
-                        animate={{ left: `${G_SCORE * 100}%` }}
+                        animate={{ left: `${gScore * 100}%` }}
                         transition={{ duration: 1, ease: 'easeOut' }}
                       />
                     </div>
                     <div className="flex justify-between mt-1 text-[7px] font-mono text-muted-foreground/50">
                       <span>0</span>
-                      <span style={{ position: 'absolute', left: `${THRESHOLD * 100}%`, transform: 'translateX(-50%)' }}>
-                        threshold: {THRESHOLD}
+                      <span style={{ position: 'absolute', left: `${threshold * 100}%`, transform: 'translateX(-50%)' }}>
+                        threshold: {threshold}
                       </span>
                       <span>1.0</span>
                     </div>
@@ -245,7 +255,7 @@ export function DecisionAnimation({ addLog, onComplete }: DecisionAnimationProps
           {/* G score compact */}
           <div className="text-center">
             <span className="text-sm font-mono font-bold" style={{ color: 'oklch(0.8 0.16 80)' }}>
-              G = {G_SCORE.toFixed(2)}
+              G = {gScore.toFixed(2)}
             </span>
           </div>
 
@@ -359,10 +369,10 @@ export function DecisionAnimation({ addLog, onComplete }: DecisionAnimationProps
                 CLAIM APPROVED
               </div>
               <div className="text-2xl font-bold font-mono mt-1" style={{ color: 'oklch(0.7 0.17 160)' }}>
-                $487.30
+                ${decisionAmount.toFixed(2)}
               </div>
               <div className="text-[10px] font-mono text-muted-foreground mt-2">
-                Global Confidence: {G_SCORE.toFixed(2)} | Threshold: {THRESHOLD.toFixed(2)}
+                Global Confidence: {gScore.toFixed(2)} | Threshold: {threshold.toFixed(2)}
               </div>
             </motion.div>
           </motion.div>

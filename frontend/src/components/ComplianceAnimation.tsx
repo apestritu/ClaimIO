@@ -3,16 +3,25 @@
 import { useEffect, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { LogEntry } from '@/lib/claim-data';
+import type { ComplianceAgentData } from '@/lib/agent-data-mapper';
 
 interface ComplianceAnimationProps {
   addLog: (log: Omit<LogEntry, 'id' | 'timestamp'>) => void;
   onComplete: () => void;
+  agentData?: ComplianceAgentData;
 }
 
-const RECEIPT_AMOUNTS = ['$127.50', '$89.00', '$45.80', '$225.00'];
+const MOCK_RECEIPT_AMOUNTS = ['$127.50', '$89.00', '$45.80', '$225.00'];
 const SCAN_NAMES = ['A. JOHNSON', 'M. RODRIGUEZ', 'K. TANAKA', 'S. PATEL', 'J. SMITH', 'L. CHEN', 'R. MÜLLER', 'D. OKAFOR'];
 
-export function ComplianceAnimation({ addLog, onComplete }: ComplianceAnimationProps) {
+export function ComplianceAnimation({ addLog, onComplete, agentData }: ComplianceAnimationProps) {
+  const claimantName = agentData?.claimantName ?? 'John Smith';
+  const sanctionHit = agentData?.sanctionHit ?? false;
+  const sanctionsConf = agentData?.sanctionsConfidence ?? 0.95;
+  const fraudScore = agentData?.fraudRiskScore ?? 0.20;
+  const receiptAmounts = agentData?.receiptAmounts
+    ? agentData.receiptAmounts.map(a => `$${a.toFixed(2)}`)
+    : MOCK_RECEIPT_AMOUNTS;
   const [sanctionPhase, setSanctionPhase] = useState<'scanning' | 'clear' | 'hit'>('scanning');
   const [fraudPhase, setFraudPhase] = useState<'idle' | 'scanning' | 'clear' | 'flagged'>('idle');
   const [scanLinePos, setScanLinePos] = useState(0);
@@ -25,7 +34,7 @@ export function ComplianceAnimation({ addLog, onComplete }: ComplianceAnimationP
     startedRef.current = true;
 
     addLog({ icon: '🛡️', text: 'Running compliance checks...' });
-    addLog({ icon: '🔍', text: 'Sanctions screening: "John Smith"...' });
+    addLog({ icon: '🔍', text: `Sanctions screening: "${claimantName}"...` });
 
     // Sanctions scan line animation
     const scanInterval = setInterval(() => {
@@ -35,23 +44,23 @@ export function ComplianceAnimation({ addLog, onComplete }: ComplianceAnimationP
     // Sanctions result
     const t1 = setTimeout(() => {
       clearInterval(scanInterval);
-      setSanctionPhase('clear');
-      addLog({ icon: '✅', text: 'No OFAC match (conf: 0.95)' });
-    }, 2500);
+      setSanctionPhase(sanctionHit ? 'hit' : 'clear');
+      addLog({ icon: sanctionHit ? '⚠️' : '✅', text: sanctionHit ? `OFAC match found for "${claimantName}"!` : `No OFAC match (conf: ${sanctionsConf.toFixed(2)})` });
+    }, 1200);
 
     // Start fraud detection
     const t2 = setTimeout(() => {
       setFraudPhase('scanning');
       addLog({ icon: '🔍', text: 'Fraud analysis: checking receipt amounts...' });
-      addLog({ icon: '→', text: RECEIPT_AMOUNTS.join(', ') });
-    }, 1200);
+      addLog({ icon: '→', text: receiptAmounts.join(', ') });
+    }, 600);
 
     // Highlight receipts one by one
     const receiptTimers: ReturnType<typeof setTimeout>[] = [];
-    RECEIPT_AMOUNTS.forEach((_, i) => {
+    receiptAmounts.forEach((_, i) => {
       receiptTimers.push(setTimeout(() => {
         setHighlightedReceipt(i);
-      }, 1800 + i * 500));
+      }, 900 + i * 250));
     });
 
     // Fraud result
@@ -59,15 +68,15 @@ export function ComplianceAnimation({ addLog, onComplete }: ComplianceAnimationP
       setFraudPhase('clear');
       setHighlightedReceipt(-1);
       addLog({ icon: '✅', text: 'No duplicates detected' });
-      addLog({ icon: '📊', text: 'Fraud risk score: 0.20 (Low)' });
-    }, 3500);
+      addLog({ icon: '📊', text: `Fraud risk score: ${fraudScore.toFixed(2)} (${fraudScore < 0.3 ? 'Low' : fraudScore < 0.6 ? 'Medium' : 'High'})` });
+    }, 1750);
 
     // Show compliance card
     const t4 = setTimeout(() => {
       setShowComplianceCard(true);
-    }, 4200);
+    }, 2100);
 
-    const t5 = setTimeout(onComplete, 5500);
+    const t5 = setTimeout(onComplete, 2800);
 
     return () => {
       clearInterval(scanInterval);
@@ -192,7 +201,7 @@ export function ComplianceAnimation({ addLog, onComplete }: ComplianceAnimationP
           >
             {/* Receipt columns */}
             <div className="flex gap-3 items-end justify-center">
-              {RECEIPT_AMOUNTS.map((amt, i) => {
+              {receiptAmounts.map((amt: string, i: number) => {
                 const height = 30 + parseFloat(amt.replace('$', '')) / 5;
                 const isHighlighted = highlightedReceipt === i;
                 const isDone = fraudPhase === 'clear';

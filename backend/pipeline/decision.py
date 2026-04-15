@@ -45,10 +45,20 @@ async def run_decision(ctx: dict, bus: EventBus) -> dict:
     if G < AUTOMATIC_THRESHOLD and status == "APPROVED":
         status = "ESCALATE"
 
+    fraud = (ctx.get("compliance") or {}).get("fraud_risk_score", 0.0)
+    metrics = [
+        {"label": "C_docs", "value": round(cs.get("docs_confidence", 0.0), 3), "weight": W_DOCS, "icon": "📄"},
+        {"label": "C_extract", "value": round(cs.get("mean_extract_conf", 0.0), 3), "weight": W_EXTRACT, "icon": "🧠"},
+        {"label": "C_coverage", "value": round(cs.get("coverage_confidence", 0.0), 3), "weight": W_COVERAGE, "icon": "⚖️"},
+        {"label": "Fraud", "value": round(fraud, 3), "weight": W_FRAUD, "icon": "🔍", "subtract": True},
+    ]
+
     decision = {
         "status": status,
         "amount": amount,
         "global_confidence": round(G, 3),
+        "threshold": AUTOMATIC_THRESHOLD,
+        "metrics": metrics,
         "reasoning": f"Global confidence: {G:.3f}. "
                      f"Coverage meets thresholds: {cs.get('meets_thresholds')}. "
                      f"Sanctions hit: {(ctx.get('compliance') or {}).get('sanction_hit', False)}. "

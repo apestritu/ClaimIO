@@ -96,12 +96,19 @@ async def run_ingest(case_id: str, bus: EventBus) -> dict:
 
         label, cls_conf = await loop.run_in_executor(None, classify_text, text)
 
+        file_size_bytes = file_path.stat().st_size
+        if file_size_bytes >= 1024 * 1024:
+            file_size_str = f"{file_size_bytes / (1024 * 1024):.1f} MB"
+        else:
+            file_size_str = f"{file_size_bytes / 1024:.0f} KB"
+
         docs[filename] = {
             "filename": filename,
             "type": label,
             "text": text,
             "ocr_conf": ocr_conf,
             "classify_conf": cls_conf,
+            "file_size": file_size_str,
         }
         docs_by_type[label].append(filename)
 
@@ -109,7 +116,7 @@ async def run_ingest(case_id: str, bus: EventBus) -> dict:
             agent="IngestAgent",
             status=TaskStatus.WORKING,
             message=f"Classified {filename} as {label} (conf: {cls_conf:.2f})",
-            data={"filename": filename, "type": label, "confidence": cls_conf},
+            data={"filename": filename, "type": label, "confidence": cls_conf, "file_size": file_size_str},
         ))
 
     by_type = dict(docs_by_type)
@@ -121,6 +128,16 @@ async def run_ingest(case_id: str, bus: EventBus) -> dict:
     confs = [docs[fn]["classify_conf"] for fn in docs]
     docs_confidence = mean(confs) if confs else 0.0
 
+    documents_summary = [
+        {
+            "filename": meta["filename"],
+            "type": meta["type"],
+            "confidence": meta["classify_conf"],
+            "file_size": meta.get("file_size", ""),
+        }
+        for meta in docs.values()
+    ]
+
     await bus.publish(TaskEvent(
         agent="IngestAgent",
         status=TaskStatus.COMPLETED,
@@ -130,6 +147,7 @@ async def run_ingest(case_id: str, bus: EventBus) -> dict:
             "types_found": list(present_types),
             "docs_confidence": round(docs_confidence, 3),
             "missing_docs": missing_docs,
+            "documents": documents_summary,
         },
     ))
 
