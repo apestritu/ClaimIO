@@ -37,6 +37,16 @@ def _reformat(mmddyyyy: str) -> str:
     return mmddyyyy
 
 
+def _parse_trip_dates(raw: str) -> tuple[str | None, str | None]:
+    """Best-effort split of a free-form trip_dates string into (depart, return)."""
+    if not raw:
+        return None, None
+    parts = re.split(r"\s*(?:to|–|-)\s*", raw.strip(), maxsplit=1)
+    depart = parts[0].strip() if len(parts) >= 1 else None
+    ret = parts[1].strip() if len(parts) >= 2 else None
+    return depart or None, ret or None
+
+
 def _merge_facts(ctx: dict) -> dict:
     """Merge all per-document facts into a unified summary."""
     out: dict = {}
@@ -44,21 +54,30 @@ def _merge_facts(ctx: dict) -> dict:
     for fm in ctx["fact_map"].values():
         facts = fm.get("facts", {}) or {}
         for key in ["incident_date", "bag_delay_start", "bag_delivered",
+                     "trip_depart", "trip_return",
                      "cancellation_date", "cancellation_reason", "medical_condition"]:
             if facts.get(key) and not out.get(key):
                 out[key] = facts[key]
 
+        if not out.get("trip_depart") and facts.get("trip_dates"):
+            dep, ret = _parse_trip_dates(facts["trip_dates"])
+            if dep:
+                out.setdefault("trip_depart", dep)
+            if ret:
+                out.setdefault("trip_return", ret)
+
+    docs = ctx["docs"]
     total_receipts = sum(
-        (fm.get("facts", {}) or {}).get("total_amount", 0) or 0
-        for fm in ctx["fact_map"].values()
-        if fm.get("doc_type") == "Receipt"
+        (ctx["fact_map"].get(fn, {}).get("facts", {}) or {}).get("total_amount", 0) or 0
+        for fn, meta in docs.items()
+        if meta["type"] == "Receipt"
     )
     out["total_receipts"] = round(total_receipts, 2)
 
     total_refunds = sum(
-        (fm.get("facts", {}) or {}).get("refund_amount", 0) or 0
-        for fm in ctx["fact_map"].values()
-        if fm.get("doc_type") in ("CancellationConfirmation",)
+        (ctx["fact_map"].get(fn, {}).get("facts", {}) or {}).get("refund_amount", 0) or 0
+        for fn, meta in docs.items()
+        if meta["type"] == "CancellationConfirmation"
     )
     out["total_refunds"] = round(total_refunds, 2)
 
@@ -108,6 +127,15 @@ def _rule_check(facts: dict) -> tuple[bool, list[str]]:
             return datetime.strptime(s, "%Y-%m-%d").date() if s else None
         except ValueError:
             return None
+
+    if not facts.get("policy_effective") or not facts.get("policy_expires"):
+        issues.append("Insufficient evidence: policy effective/expiry dates not found")
+
+    if not facts.get("trip_depart"):
+        issues.append("Insufficient evidence: trip departure date not found")
+
+    if not facts.get("incident_date") and not facts.get("cancellation_date"):
+        issues.append("Insufficient evidence: neither incident date nor cancellation date found")
 
     bag_start = _to_date(facts.get("bag_delay_start"))
     bag_delivered = _to_date(facts.get("bag_delivered"))

@@ -10,8 +10,13 @@ from a2a import EventBus, TaskEvent, TaskStatus
 
 logger = logging.getLogger(__name__)
 
-REQUIRED_TYPES = {"Policy", "ClaimForm", "BagReport", "FlightTicket", "Receipt",
-                  "PhysicianStatement", "CancellationConfirmation", "TripSummary"}
+REQUIRED_BY_SCENARIO = {
+    "baggage": {"Policy", "ClaimForm", "BagReport", "FlightTicket", "Receipt", "TripSummary"},
+    "cancellation": {"Policy", "ClaimForm", "FlightTicket", "PhysicianStatement",
+                     "CancellationConfirmation", "TripSummary"},
+    "mixed": {"Policy", "ClaimForm", "BagReport", "FlightTicket", "Receipt",
+              "PhysicianStatement", "CancellationConfirmation", "TripSummary"},
+}
 
 
 async def run_evidence_collection(ctx: dict, bus: EventBus) -> dict:
@@ -24,12 +29,14 @@ async def run_evidence_collection(ctx: dict, bus: EventBus) -> dict:
 
     docs = ctx["docs"]
     docs_by_type = ctx["docs_by_type"]
+    claim_type = ctx.get("claim_type", "baggage")
+    required_types = REQUIRED_BY_SCENARIO.get(claim_type, REQUIRED_BY_SCENARIO["mixed"])
 
     provided = {}
     confs = []
 
     for doc_type, filenames in docs_by_type.items():
-        if doc_type in REQUIRED_TYPES:
+        if doc_type in required_types:
             avg_conf = mean(docs[fn]["classify_conf"] for fn in filenames)
             provided[doc_type] = {
                 "filenames": filenames,
@@ -41,7 +48,7 @@ async def run_evidence_collection(ctx: dict, bus: EventBus) -> dict:
     docs_confidence = mean(confs) if confs else 0.0
 
     checklist = []
-    for req in sorted(REQUIRED_TYPES):
+    for req in sorted(required_types):
         entry = provided.get(req)
         if entry:
             checklist.append({
@@ -61,12 +68,13 @@ async def run_evidence_collection(ctx: dict, bus: EventBus) -> dict:
     await bus.publish(TaskEvent(
         agent="EvidenceCollectionAgent",
         status=TaskStatus.COMPLETED,
-        message=f"Evidence check complete. {len(provided)}/{len(REQUIRED_TYPES)} types found. Confidence: {docs_confidence:.2f}",
+        message=f"Evidence check complete ({claim_type}). {len(provided)}/{len(required_types)} types found. Confidence: {docs_confidence:.2f}",
         data={
             "checklist": checklist,
             "docs_confidence": round(docs_confidence, 3),
             "provided_count": len(provided),
-            "total_required": len(REQUIRED_TYPES),
+            "total_required": len(required_types),
+            "claim_type": claim_type,
         },
     ))
 

@@ -28,10 +28,11 @@ async def run_compliance(ctx: dict, bus: EventBus) -> dict:
 
     is_hit, sanc_conf = check_sanctions(claimant_name)
 
+    docs = ctx["docs"]
     receipt_amounts = [
-        (fm.get("facts", {}) or {}).get("total_amount", 0) or 0
-        for fm in ctx["fact_map"].values()
-        if fm.get("doc_type") == "Receipt"
+        (ctx["fact_map"].get(fn, {}).get("facts", {}) or {}).get("total_amount", 0) or 0
+        for fn, meta in docs.items()
+        if meta["type"] == "Receipt"
     ]
     fraud_score = compute_fraud_risk(receipt_amounts)
 

@@ -94,7 +94,7 @@ async def run_ingest(case_id: str, bus: EventBus) -> dict:
         else:
             text, ocr_conf = await loop.run_in_executor(None, extract_pdf_text, file_path)
 
-        label, cls_conf = await loop.run_in_executor(None, classify_text, text)
+        label, cls_conf = await loop.run_in_executor(None, classify_text, text, filename)
 
         docs[filename] = {
             "filename": filename,
@@ -116,7 +116,27 @@ async def run_ingest(case_id: str, bus: EventBus) -> dict:
     present_types = set(by_type.keys())
     missing_baggage = REQUIRED_TYPES_BAGGAGE - present_types
     missing_cancel = REQUIRED_TYPES_CANCELLATION - present_types
-    missing_docs = bool(min(len(missing_baggage), len(missing_cancel)))
+
+    baggage_indicators = {"BagReport", "Receipt"}
+    cancel_indicators = {"PhysicianStatement", "CancellationConfirmation"}
+    has_baggage = bool(present_types & baggage_indicators)
+    has_cancel = bool(present_types & cancel_indicators)
+
+    if has_baggage and has_cancel:
+        claim_type = "mixed"
+    elif has_cancel:
+        claim_type = "cancellation"
+    elif has_baggage:
+        claim_type = "baggage"
+    else:
+        claim_type = "baggage"
+
+    if claim_type == "cancellation":
+        missing_docs = bool(missing_cancel)
+    elif claim_type == "baggage":
+        missing_docs = bool(missing_baggage)
+    else:
+        missing_docs = bool(min(len(missing_baggage), len(missing_cancel)))
 
     confs = [docs[fn]["classify_conf"] for fn in docs]
     docs_confidence = mean(confs) if confs else 0.0
@@ -124,10 +144,11 @@ async def run_ingest(case_id: str, bus: EventBus) -> dict:
     await bus.publish(TaskEvent(
         agent="IngestAgent",
         status=TaskStatus.COMPLETED,
-        message=f"Ingested {len(docs)} documents. Confidence: {docs_confidence:.2f}",
+        message=f"Ingested {len(docs)} documents. Claim type: {claim_type}. Confidence: {docs_confidence:.2f}",
         data={
             "document_count": len(docs),
             "types_found": list(present_types),
+            "claim_type": claim_type,
             "docs_confidence": round(docs_confidence, 3),
             "missing_docs": missing_docs,
         },
@@ -136,6 +157,7 @@ async def run_ingest(case_id: str, bus: EventBus) -> dict:
     return {
         "docs": docs,
         "docs_by_type": by_type,
+        "claim_type": claim_type,
         "missing_docs": missing_docs,
         "docs_confidence": docs_confidence,
     }

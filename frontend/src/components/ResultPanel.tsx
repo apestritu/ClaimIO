@@ -39,7 +39,7 @@ export default function ResultPanel({ summary }: ResultPanelProps) {
 
   return (
     <motion.div
-      className="space-y-4 p-6"
+      className="space-y-4 p-6 pb-10"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
@@ -147,7 +147,7 @@ export default function ResultPanel({ summary }: ResultPanelProps) {
               Issues Found
             </h3>
           </div>
-          <div className="p-4 space-y-1">
+          <div className="p-4 space-y-1 max-h-60 overflow-y-auto">
             {issues.map((issue, i) => (
               <p key={i} className="text-xs text-muted-foreground">
                 • {issue}
@@ -165,7 +165,7 @@ export default function ResultPanel({ summary }: ResultPanelProps) {
               Coverage Reasoning
             </h3>
           </div>
-          <div className="p-4">
+          <div className="p-4 max-h-80 overflow-y-auto">
             <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-wrap">
               {reasoning}
             </p>

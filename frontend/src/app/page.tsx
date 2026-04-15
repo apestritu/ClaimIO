@@ -166,9 +166,9 @@ function LiveMode({ onSwitchToDemo, onSwitchToLanding }: { onSwitchToDemo: () =>
       )}
 
       {/* Main content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0">
         {/* Main animation area */}
-        <div className="flex-1 relative overflow-hidden" style={{ flexBasis: "70%" }}>
+        <div className={`flex-1 relative ${isDone ? "overflow-y-auto" : "overflow-hidden"}`} style={{ flexBasis: "70%" }}>
           {hasStarted && phase !== "select" && phase !== "done" && (
             <AgentAvatar
               phase={phase}
@@ -215,7 +215,7 @@ function LiveMode({ onSwitchToDemo, onSwitchToLanding }: { onSwitchToDemo: () =>
             {isDone && (
               <motion.div
                 key="done"
-                className="absolute inset-0 flex items-center justify-center"
+                className="flex items-start justify-center py-6"
                 initial={{ opacity: 0, scale: 1.05, filter: "blur(8px)" }}
                 animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                 exit={{ opacity: 0, scale: 0.95, filter: "blur(8px)" }}
